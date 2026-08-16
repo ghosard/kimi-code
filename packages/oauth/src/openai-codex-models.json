@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "defaultModel": "gpt-5.6-sol",
+  "provider": {
+    "baseUrl": "https://chatgpt.com/backend-api/codex"
+  },
+  "models": [
+    {
+      "id": "gpt-5.3-codex-spark",
+      "displayName": "GPT-5.3 Codex Spark",
+      "maxContextSize": 128000,
+      "maxOutputSize": 128000,
+      "capabilities": ["thinking", "tool_use"],
+      "supportEfforts": ["minimal", "low", "medium", "high", "xhigh"],
+      "defaultEffort": "medium"
+    },
+    {
+      "id": "gpt-5.4",
+      "displayName": "GPT-5.4",
+      "maxContextSize": 272000,
+      "maxOutputSize": 128000,
+      "capabilities": ["thinking", "image_in", "tool_use"],
+      "supportEfforts": ["minimal", "low", "medium", "high", "xhigh"],
+      "defaultEffort": "medium"
+    },
+    {
+      "id": "gpt-5.4-mini",
+      "displayName": "GPT-5.4 mini",
+      "maxContextSize": 272000,
+      "maxOutputSize": 128000,
+      "capabilities": ["thinking", "image_in", "tool_use"],
+      "supportEfforts": ["minimal", "low", "medium", "high", "xhigh"],
+      "defaultEffort": "medium"
+    },
+    {
+      "id": "gpt-5.5",
+      "displayName": "GPT-5.5",
+      "maxContextSize": 272000,
+      "maxOutputSize": 128000,
+      "capabilities": ["thinking", "image_in", "tool_use"],
+      "supportEfforts": ["minimal", "low", "medium", "high", "xhigh"],
+      "defaultEffort": "medium"
+    },
+    {
+      "id": "gpt-5.6-luna",
+      "displayName": "GPT-5.6 Luna",
+      "maxContextSize": 272000,
+      "maxOutputSize": 128000,
+      "capabilities": ["thinking", "image_in", "tool_use"],
+      "supportEfforts": ["minimal", "low", "medium", "high", "xhigh", "max"],
+      "defaultEffort": "medium"
+    },
+    {
+      "id": "gpt-5.6-sol",
+      "displayName": "GPT-5.6 Sol",
+      "maxContextSize": 272000,
+      "maxOutputSize": 128000,
+      "capabilities": ["thinking", "image_in", "tool_use"],
+      "supportEfforts": ["minimal", "low", "medium", "high", "xhigh", "max"],
+      "defaultEffort": "medium"
+    },
+    {
+      "id": "gpt-5.6-terra",
+      "displayName": "GPT-5.6 Terra",
+      "maxContextSize": 272000,
+      "maxOutputSize": 128000,
+      "capabilities": ["thinking", "image_in", "tool_use"],
+      "supportEfforts": ["minimal", "low", "medium", "high", "xhigh", "max"],
+      "defaultEffort": "medium"
+    }
+  ]
+}

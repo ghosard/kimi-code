@@ -1,4 +1,5 @@
 import { effectiveModelAlias, type ModelAlias, type ThinkingEffort } from '@moonshot-ai/kimi-code-sdk';
+import { OPENAI_CODEX_PROVIDER_NAME } from '@moonshot-ai/kimi-code-oauth';
 import {
   Container,
   Key,
@@ -44,6 +45,7 @@ export function modelDisplayName(alias: string, model: ModelAlias | undefined): 
 
 export function providerDisplayName(provider: string): string {
   if (provider === DEFAULT_OAUTH_PROVIDER_NAME) return PRODUCT_NAME;
+  if (provider === OPENAI_CODEX_PROVIDER_NAME) return 'OpenAI Codex';
   if (provider.startsWith('managed:')) return provider.slice('managed:'.length);
   return provider;
 }

@@ -103,6 +103,29 @@ const OPENAI_RESPONSES_TOOL_CALL_ID_POLICY: ToolCallIdPolicy = {
   maxLength: 64,
 };
 
+const OPENAI_PROMPT_CACHE_KEY_MAX_LENGTH = 64;
+
+function applyOpenAICodexSessionAffinity(
+  auth: ProviderRequestAuth | undefined,
+  cacheKey: unknown,
+): { readonly auth: ProviderRequestAuth | undefined; readonly cacheKey: unknown } {
+  if (auth?.sessionAffinity !== 'openai-codex' || typeof cacheKey !== 'string') {
+    return { auth, cacheKey };
+  }
+  const sessionId = cacheKey.slice(0, OPENAI_PROMPT_CACHE_KEY_MAX_LENGTH);
+  return {
+    cacheKey: sessionId,
+    auth: {
+      ...auth,
+      headers: {
+        ...auth.headers,
+        'session-id': sessionId,
+        'x-client-request-id': sessionId,
+      },
+    },
+  };
+}
+
 type ResponseOutputItemView =
   | {
       type: 'message';
@@ -1153,8 +1176,17 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
       }
     }
 
+    const cacheAffinity = applyOpenAICodexSessionAffinity(
+      options?.auth,
+      kwargs['prompt_cache_key'],
+    );
+    kwargs['prompt_cache_key'] = cacheAffinity.cacheKey;
+    if (cacheAffinity.auth?.sessionAffinity === 'openai-codex') {
+      Reflect.deleteProperty(kwargs, 'max_output_tokens');
+    }
+
     try {
-      const client = this._createClient(options?.auth);
+      const client = this._createClient(cacheAffinity.auth);
       const createParams: Record<string, unknown> = {
         model: this._model,
         input,

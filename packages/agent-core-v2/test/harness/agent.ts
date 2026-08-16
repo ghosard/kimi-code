@@ -1137,6 +1137,12 @@ export class AgentTestContext {
                     'IModelOAuthTokens.getAccessToken is not supported in the test harness',
                   ),
                 ),
+              getRequestAuth: () =>
+                Promise.reject(
+                  new Error(
+                    'IModelOAuthTokens.getRequestAuth is not supported in the test harness',
+                  ),
+                ),
             } satisfies IModelOAuthTokens,
           );
           reg.defineDescriptor(

@@ -7,10 +7,14 @@ import {
   type OAuthRef,
 } from '@moonshot-ai/agent-core';
 import {
+  applyOpenAICodexConfig,
+  applyOpenAICodexLogoutConfig,
   applyManagedKimiCodeConfig,
   applyManagedKimiCodeLogoutConfig,
   KIMI_CODE_PROVIDER_NAME,
   KimiOAuthToolkit,
+  openAICodexOAuthRef,
+  OPENAI_CODEX_PROVIDER_NAME,
   resolveKimiCodeLoginAuth,
   resolveKimiCodeRuntimeAuth,
   type AuthManagedUsageResult,
@@ -119,13 +123,38 @@ export class KimiAuthFacade {
   }
 
   async status(providerName?: string | undefined): Promise<AuthStatus> {
-    return this.toolkit.status(providerName, this.resolveRuntimeManagedAuth(providerName).oauthRef);
+    return this.toolkit.status(providerName, this.runtimeOAuthRef(providerName));
   }
 
   async login(
     providerName: string | undefined = KIMI_CODE_PROVIDER_NAME,
     options: KimiAuthLoginOptions = {},
   ): Promise<KimiAuthLoginResult> {
+    if (providerName === OPENAI_CODEX_PROVIDER_NAME) {
+      const configured = this.resolveManagedAuth(providerName);
+      const oauthRef = options.oauthRef ?? configured.oauthRef ?? openAICodexOAuthRef();
+      const result = await this.toolkit.login(providerName, {
+        ...options,
+        oauthRef,
+        oauthHost: oauthRef.oauthHost,
+        provisionConfig: false,
+      });
+      const config = readConfigFileForUpdate(this.options.configPath) as SDKManagedConfig;
+      const provision = applyOpenAICodexConfig(config, {
+        preserveDefaultModel: configured.oauthRef !== undefined,
+      });
+      await writeConfigFile(this.options.configPath, config);
+      const updated = readConfigFile(this.options.configPath);
+      this.options.onConfigUpdated?.(updated);
+      return {
+        providerName: result.providerName,
+        ok: true,
+        defaultModel: provision.defaultModel,
+        defaultThinking: provision.defaultThinking,
+        configPath: this.options.configPath,
+      };
+    }
+
     const auth = this.resolveManagedAuth(providerName);
     const loginAuth = resolveKimiCodeLoginAuth({
       configuredBaseUrl: auth.baseUrl,
@@ -155,6 +184,19 @@ export class KimiAuthFacade {
   }
 
   async logout(providerName?: string | undefined): Promise<KimiAuthLogoutResult> {
+    if (providerName === OPENAI_CODEX_PROVIDER_NAME) {
+      const result = await this.toolkit.logout(
+        providerName,
+        this.runtimeOAuthRef(providerName),
+      );
+      const config = readConfigFileForUpdate(this.options.configPath) as SDKManagedConfig;
+      applyOpenAICodexLogoutConfig(config);
+      await writeConfigFile(this.options.configPath, config);
+      const updated = readConfigFile(this.options.configPath);
+      this.options.onConfigUpdated?.(updated);
+      return { providerName: result.providerName, ok: result.ok };
+    }
+
     const result = await this.toolkit.logout(
       providerName,
       this.resolveRuntimeManagedAuth(providerName).oauthRef,
@@ -265,13 +307,23 @@ export class KimiAuthFacade {
       providerName,
       this.runtimeOAuthRef(providerName, oauthRef),
     );
+    const getAccessToken: BearerTokenProvider['getAccessToken'] = async (options) => {
+      try {
+        return await provider.getAccessToken(options);
+      } catch (error) {
+        throw mapOAuthTokenError(error, providerName) ?? error;
+      }
+    };
+    const base: BearerTokenProvider = {
+      getAccessToken,
+    };
+    if (provider.getRequestAuth === undefined) return base;
     return {
-      getAccessToken: async (options) => {
+      getAccessToken,
+      getRequestAuth: async (options) => {
         try {
-          return await provider.getAccessToken(options);
+          return await provider.getRequestAuth!(options);
         } catch (error) {
-          // Classify OAuth token failures into the public KimiError protocol;
-          // unrecognized errors are rethrown raw (see mapOAuthTokenError).
           throw mapOAuthTokenError(error, providerName) ?? error;
         }
       },
@@ -309,7 +361,11 @@ export class KimiAuthFacade {
     providerName: string | undefined,
     oauthRef?: OAuthRef | undefined,
   ): OAuthRef | undefined {
-    if ((providerName ?? KIMI_CODE_PROVIDER_NAME) !== KIMI_CODE_PROVIDER_NAME) return oauthRef;
+    const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
+    if (name === OPENAI_CODEX_PROVIDER_NAME) {
+      return oauthRef ?? this.resolveManagedAuth(name).oauthRef ?? openAICodexOAuthRef();
+    }
+    if (name !== KIMI_CODE_PROVIDER_NAME) return oauthRef;
     const auth = this.resolveManagedAuth(providerName);
     return resolveKimiCodeRuntimeAuth({
       configuredBaseUrl: auth.baseUrl,

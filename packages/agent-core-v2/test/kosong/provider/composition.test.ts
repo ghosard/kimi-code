@@ -721,6 +721,51 @@ describe('per-turn intent wire encoding (behavior probes)', () => {
     expect(params['metadata']).toEqual({ user_id: 'session-probe' });
   });
 
+  it('aligns Codex cache-affinity headers with the clamped Responses cache key', async () => {
+    const longCacheKey = 'session-'.repeat(12);
+    let capturedAuth: GenerateOptions['auth'];
+    let capturedBody: Record<string, unknown> | undefined;
+    const provider = new OpenAIResponsesChatProvider({
+      model: 'gpt-5.6-sol',
+      clientFactory: (auth) => {
+        capturedAuth = auth;
+        return {
+          responses: {
+            create: vi.fn().mockImplementation((params: unknown) => {
+              capturedBody = params as Record<string, unknown>;
+              return Promise.resolve(responsesEventStream());
+            }),
+          },
+        } as never;
+      },
+    });
+
+    await drain(
+      await provider.generate('', [], PROBE_HISTORY, {
+        cacheKey: longCacheKey,
+        maxCompletionTokens: 128000,
+        auth: {
+          apiKey: 'codex-token',
+          headers: { 'chatgpt-account-id': 'acct-test' },
+          sessionAffinity: 'openai-codex',
+        },
+      }),
+    );
+
+    const sessionId = longCacheKey.slice(0, 64);
+    expect(capturedBody?.['prompt_cache_key']).toBe(sessionId);
+    expect(capturedBody).not.toHaveProperty('max_output_tokens');
+    expect(capturedAuth).toEqual({
+      apiKey: 'codex-token',
+      headers: {
+        'chatgpt-account-id': 'acct-test',
+        'session-id': sessionId,
+        'x-client-request-id': sessionId,
+      },
+      sessionAffinity: 'openai-codex',
+    });
+  });
+
   it('encodes thinking for Kimi over the Anthropic transport through the pair trait only', async () => {
     const provider = registry.createChatProvider({
       protocol: 'anthropic',

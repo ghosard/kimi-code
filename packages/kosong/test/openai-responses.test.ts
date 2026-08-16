@@ -99,6 +99,56 @@ const MUL_TOOL: Tool = {
 };
 
 describe('OpenAIResponsesChatProvider', () => {
+  it('aligns Codex cache-affinity headers with the clamped prompt cache key', async () => {
+    const longCacheKey = 'session-'.repeat(12);
+    let capturedAuth: GenerateOptions['auth'];
+    let capturedBody: Record<string, unknown> | undefined;
+    const provider = new OpenAIResponsesChatProvider({
+      model: 'gpt-5.6-sol',
+      clientFactory: (auth) => {
+        capturedAuth = auth;
+        return {
+          responses: {
+            create: vi.fn().mockImplementation((params: unknown) => {
+              capturedBody = params as Record<string, unknown>;
+              return Promise.resolve(makeResponsesAPIResponse());
+            }),
+          },
+        } as never;
+      },
+      generationKwargs: { prompt_cache_key: longCacheKey },
+      maxOutputTokens: 128000,
+    });
+    (provider as unknown as { _stream: boolean })._stream = false;
+
+    const stream = await provider.generate(
+      '',
+      [],
+      [{ role: 'user', content: [{ type: 'text', text: 'Hi' }], toolCalls: [] }],
+      {
+        auth: {
+          apiKey: 'codex-token',
+          headers: { 'chatgpt-account-id': 'acct-test' },
+          sessionAffinity: 'openai-codex',
+        },
+      },
+    );
+    for await (const part of stream) void part;
+
+    const sessionId = longCacheKey.slice(0, 64);
+    expect(capturedBody?.['prompt_cache_key']).toBe(sessionId);
+    expect(capturedBody).not.toHaveProperty('max_output_tokens');
+    expect(capturedAuth).toEqual({
+      apiKey: 'codex-token',
+      headers: {
+        'chatgpt-account-id': 'acct-test',
+        'session-id': sessionId,
+        'x-client-request-id': sessionId,
+      },
+      sessionAffinity: 'openai-codex',
+    });
+  });
+
   describe('message conversion', () => {
     it('sends system prompt as top-level instructions', async () => {
       const provider = createProvider();

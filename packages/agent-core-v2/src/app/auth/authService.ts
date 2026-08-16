@@ -15,11 +15,15 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  applyOpenAICodexConfig,
+  applyOpenAICodexLogoutConfig,
   DeviceCodeTimeoutError,
   KIMI_CODE_PLATFORM_ID,
   KIMI_CODE_PROVIDER_NAME,
   KimiOAuthToolkit,
   kimiCodeBaseUrl,
+  openAICodexOAuthRef,
+  OPENAI_CODEX_PROVIDER_NAME,
   OAuthError,
   applyManagedKimiCodeConfig,
   clearManagedKimiCodeConfig,
@@ -234,10 +238,7 @@ export class OAuthService extends Disposable implements IOAuthService {
   }
 
   async logout(provider = KIMI_CODE_PROVIDER_NAME): Promise<OAuthLogoutResponse> {
-    const oauthRef =
-      provider === KIMI_CODE_PROVIDER_NAME
-        ? this.resolveRuntimeOAuthRef(provider)
-        : this.readOAuthRefOptional(provider);
+    const oauthRef = this.resolveRuntimeOAuthRef(provider);
     const result = await this.toolkit.logout(provider, oauthRef);
     this.abortExisting(provider);
     await this.deprovisionProvider(provider);
@@ -410,6 +411,14 @@ export class OAuthService extends Disposable implements IOAuthService {
     readonly oauthHost: string | undefined;
   } {
     const config = this.providerService.get(provider);
+    if (provider === OPENAI_CODEX_PROVIDER_NAME) {
+      const oauthRef = config?.oauth ?? openAICodexOAuthRef();
+      return {
+        oauthRef,
+        baseUrl: config?.baseUrl,
+        oauthHost: oauthRef.oauthHost,
+      };
+    }
     if (provider !== KIMI_CODE_PROVIDER_NAME) {
       return { oauthRef: config?.oauth, baseUrl: undefined, oauthHost: undefined };
     }
@@ -435,6 +444,9 @@ export class OAuthService extends Disposable implements IOAuthService {
   }
 
   private resolveRuntimeOAuthRef(provider: string, oauthRef?: OAuthRef): OAuthRef | undefined {
+    if (provider === OPENAI_CODEX_PROVIDER_NAME) {
+      return oauthRef ?? this.providerService.get(provider)?.oauth ?? openAICodexOAuthRef();
+    }
     if (provider !== KIMI_CODE_PROVIDER_NAME) return oauthRef;
     const config = this.providerService.get(provider);
     return resolveKimiCodeRuntimeAuth({
@@ -497,6 +509,16 @@ export class OAuthService extends Disposable implements IOAuthService {
     oauthRef: OAuthRef | undefined,
     loginBaseUrl: string | undefined,
   ): Promise<void> {
+    if (provider === OPENAI_CODEX_PROVIDER_NAME) {
+      const next = structuredClone(this.readUserConfigShape());
+      const preserveDefaultModel = next.providers[provider] !== undefined;
+      applyOpenAICodexConfig(next, { preserveDefaultModel });
+      await this.config.replace(PROVIDERS_SECTION, next.providers);
+      await this.config.replace(MODELS_SECTION, next.models ?? {});
+      await this.config.replace(DEFAULT_MODEL_SECTION, next.defaultModel);
+      await this.config.replace(THINKING_SECTION, next.thinking);
+      return;
+    }
     if (oauthRef === undefined && provider !== KIMI_CODE_PROVIDER_NAME) return;
     const baseUrl =
       loginBaseUrl ?? this.providerService.get(provider)?.baseUrl ?? kimiCodeBaseUrl();
@@ -519,6 +541,22 @@ export class OAuthService extends Disposable implements IOAuthService {
   }
 
   private async deprovisionProvider(provider: string): Promise<void> {
+    if (provider === OPENAI_CODEX_PROVIDER_NAME) {
+      const next = structuredClone(this.readUserConfigShape());
+      const hadProvider = next.providers[provider] !== undefined;
+      const modelCount = Object.values(next.models ?? {}).filter(
+        (model) => (model as { readonly provider?: unknown }).provider === provider,
+      ).length;
+      const previousDefault = next.defaultModel;
+      applyOpenAICodexLogoutConfig(next);
+      if (hadProvider) await this.config.replace(PROVIDERS_SECTION, next.providers);
+      if (modelCount > 0) await this.config.replace(MODELS_SECTION, next.models ?? {});
+      if (next.defaultModel !== previousDefault) {
+        await this.config.replace(DEFAULT_MODEL_SECTION, next.defaultModel);
+        await this.config.replace(THINKING_SECTION, next.thinking);
+      }
+      return;
+    }
     if (provider !== KIMI_CODE_PROVIDER_NAME) return;
     const next = structuredClone(this.readUserConfigShape());
     const cleanup = clearManagedKimiCodeConfig(next);

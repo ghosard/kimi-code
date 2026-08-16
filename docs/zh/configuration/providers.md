@@ -1,6 +1,6 @@
 # 平台与模型
 
-Kimi Code CLI 支持同时接入多家 LLM 平台——用 Kimi Code 托管服务一键登录、用 Anthropic API key 接 Claude、用 OpenAI 兼容协议连接第三方推理服务。每个供应商对应一种 API 协议，模型在供应商之上声明自己的名称、上下文长度和能力。本页介绍如何在 `config.toml` 里配置各种供应商。
+Kimi Code CLI 支持同时接入多家 LLM 平台——用 Kimi Code 托管服务一键登录、用 ChatGPT 订阅登录 OpenAI Codex、用 Anthropic API key 接 Claude、用 OpenAI 兼容协议连接第三方推理服务。每个供应商对应一种 API 协议，模型在供应商之上声明自己的名称、上下文长度和能力。本页介绍如何在 `config.toml` 里配置各种供应商。
 
 ## 支持的供应商类型
 
@@ -35,7 +35,7 @@ Kimi Code CLI 支持同时接入多家 LLM 平台——用 Kimi Code 托管服�
 - **Custom registry (api.json)**：粘贴自定义 registry 地址和 Bearer token，CLI 自动创建 `providers` / `models` 条目。后续启动时，同一个 registry 地址下的供应商会一起刷新，因此上游新增、删除供应商以及模型元数据变化都会同步。
 
 ::: warning
-通过 `/login` 登录的 Kimi Code OAuth 托管账号不会在 `/provider` 里显示，请用 `/login` 和 `/logout` 管理。
+通过 `/login` 登录的 OAuth 账号不会在 `/provider` 里显示，请用 `/login` 和 `/logout` 管理。
 :::
 
 非交互环境下也可以用 shell 命令完成同样操作：[`kimi provider`](../reference/kimi-command.md#kimi-provider)。
@@ -154,7 +154,20 @@ kimi
 
 ## OAuth 与凭证注入
 
-Kimi Code 托管服务使用 OAuth 而非静态 API 密钥。运行 `/login` 后，内置的认证工具链会自动写入并刷新凭证，`config.toml` 里无需手动配置这部分内容。
+Kimi Code 托管服务和 OpenAI Codex 订阅供应商使用 OAuth，而不是静态 API 密钥。在 TUI 里运行 `/login` 并选择供应商；在 shell 里可以运行：
+
+```sh
+kimi login                 # Kimi Code
+kimi login openai-codex    # ChatGPT 订阅 / OpenAI Codex
+```
+
+OpenAI Codex 使用设备码和包含 Codex 权益的 ChatGPT 订阅登录，不消耗 OpenAI API key。登录后，供应商和模型别名会写进 `config.toml`，access token 和 refresh token 则保存在凭证目录中。
+
+提示缓存无需额外配置：Kimi Code 会自动把稳定的会话 ID 同时用于 Responses API 的缓存 key 和 Codex 缓存亲和性请求头。
+
+### 维护 OpenAI Codex 模型列表
+
+内置 Codex 模型快照位于 `packages/oauth/src/openai-codex-models.json`。模型 ID、显示名、上下文/输出上限、能力、支持的推理档位和默认模型都在这份数据文件里。以后 OpenAI 调整订阅模型时，只更新这份 JSON；OAuth 协议代码不需要跟着修改。
 
 ## 下一步
 

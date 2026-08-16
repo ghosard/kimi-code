@@ -139,14 +139,20 @@ export function stubModelOAuthTokens(
   tokenProvider?: StubTokenProvider,
   cachedToken?: string,
 ): IModelOAuthTokens {
+  const getAccessToken: IModelOAuthTokens['getAccessToken'] = (
+    _provider,
+    _oauthRef,
+    options,
+  ) =>
+    tokenProvider === undefined
+      ? Promise.reject(new Error('auth.login_required'))
+      : tokenProvider.getAccessToken(options?.force === true ? { force: true } : undefined);
   return {
     _serviceBrand: undefined,
     hasCachedAccessToken: () => Promise.resolve(cachedToken !== undefined),
-    getAccessToken: (_provider, _oauthRef, options) =>
-      tokenProvider === undefined
-        ? Promise.reject(new Error('auth.login_required'))
-        : tokenProvider.getAccessToken(
-            options?.force === true ? { force: true } : undefined,
-          ),
+    getAccessToken,
+    getRequestAuth: async (provider, oauthRef, options) => ({
+      apiKey: await getAccessToken(provider, oauthRef, options),
+    }),
   };
 }

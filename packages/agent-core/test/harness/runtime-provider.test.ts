@@ -1037,6 +1037,26 @@ describe('ProviderManager OAuth auth', () => {
       code: ErrorCodes.AUTH_LOGIN_REQUIRED,
     });
   });
+
+  it('passes provider-specific OAuth headers to the request', async () => {
+    const manager = new ProviderManager({
+      config: oauthConfig(),
+      resolveOAuthTokenProvider: () => ({
+        getAccessToken: () => Promise.resolve('access-token'),
+        getRequestAuth: () =>
+          Promise.resolve({
+            apiKey: 'access-token',
+            headers: { 'chatgpt-account-id': 'acct-test' },
+          }),
+      }),
+    });
+    const resolveAuth = manager.resolveAuth('kimi-code/kimi-for-coding');
+
+    await expect(resolveAuth!(async (auth) => auth)).resolves.toEqual({
+      apiKey: 'access-token',
+      headers: { 'chatgpt-account-id': 'acct-test' },
+    });
+  });
 });
 
 describe('resolveThinkingEffort', () => {

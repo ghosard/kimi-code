@@ -4,6 +4,24 @@
 
 [Documentation](https://moonshotai.github.io/kimi-code/zh/) · [Issues](https://github.com/MoonshotAI/kimi-code/issues) · [English](README.md)
 
+## 这个 fork 增加了什么
+
+这个 fork 为 Kimi Code CLI 增加了 ChatGPT 订阅登录和 OpenAI Codex 模型支持。
+
+- 运行 `kimi login openai-codex`，或在 `/login` 中选择 **OpenAI Codex**，即可通过浏览器设备码流程登录；不需要 API Key，也不需要本地回调端口。
+- access token 和 refresh token 复用 Kimi Code 原有的 OAuth 存储。两套 Agent 引擎都会动态读取 token，并把 Codex 请求发送到 `https://chatgpt.com/backend-api/codex`。
+- 请求会携带 ChatGPT account header，并使用稳定的 `prompt_cache_key`、`session-id` 和 `x-client-request-id` 提高 prompt cache 命中率；订阅接口不支持的参数会在发送前被过滤。
+- provider 与模型快照集中放在 [`packages/oauth/src/openai-codex-models.json`](packages/oauth/src/openai-codex-models.json)。以后模型变化时只需要更新这个 JSON，然后重新登录一次以刷新本地配置。
+
+设备授权流程、Codex 请求行为和模型维护方式参考了 MIT 协议的 [`earendil-works/pi`](https://github.com/earendil-works/pi)。实现接入了 Kimi Code 自己的 provider、OAuth、SDK、CLI 和 TUI 边界，没有把 Pi 作为运行时依赖引入。
+
+从源码启动：
+
+```sh
+npm --prefix apps/kimi-code run dev -- login openai-codex
+npm --prefix apps/kimi-code run dev
+```
+
 
 ![Kimi Code 的使用演示](./docs/media/intro.gif)
 

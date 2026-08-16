@@ -42,11 +42,31 @@ import {
   type ParsedManagedUsage,
 } from './managed-usage';
 import { OAuthManager, type LoginOptions, type OAuthManagerOptions } from './oauth-manager';
+import {
+  openAICodexRequestAuth,
+  OPENAI_CODEX_FLOW_CONFIG,
+  OPENAI_CODEX_OAUTH_HOST,
+  OPENAI_CODEX_OAUTH_KEY,
+  OPENAI_CODEX_PROVIDER_NAME,
+  pollOpenAICodexDeviceToken,
+  refreshOpenAICodexToken,
+  requestOpenAICodexDeviceAuthorization,
+} from './openai-codex';
 import { FileTokenStorage, type TokenStorage } from './storage';
 import type { OAuthFlowConfig } from './types';
 
+export interface BearerRequestAuth {
+  readonly apiKey: string;
+  readonly headers?: Record<string, string> | undefined;
+  /** Provider-specific session-affinity headers should follow the prompt cache key. */
+  readonly sessionAffinity?: 'openai-codex' | undefined;
+}
+
 export interface BearerTokenProvider {
   getAccessToken(options?: { readonly force?: boolean | undefined }): Promise<string>;
+  getRequestAuth?(
+    options?: { readonly force?: boolean | undefined },
+  ): Promise<BearerRequestAuth>;
 }
 
 export interface AuthProviderStatus {
@@ -144,8 +164,8 @@ export class KimiOAuthToolkit<TConfig = unknown> {
     oauthRef?: KimiOAuthTokenRef | undefined,
   ): Promise<AuthStatus> {
     const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
-    const oauthHost = this.oauthHostFor(oauthRef);
-    const oauthKey = oauthRef?.key ?? this.defaultOAuthKey(undefined, oauthHost);
+    const oauthHost = this.oauthHostFor(name, oauthRef);
+    const oauthKey = oauthRef?.key ?? this.defaultOAuthKey(name, undefined, oauthHost);
     return {
       providers: [
         {
@@ -161,8 +181,9 @@ export class KimiOAuthToolkit<TConfig = unknown> {
     options: KimiOAuthLoginOptions = {},
   ): Promise<KimiOAuthLoginResult> {
     const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
-    const oauthHost = this.oauthHostFor(options.oauthRef, options.oauthHost);
-    const oauthKey = options.oauthRef?.key ?? this.defaultOAuthKey(options.baseUrl, oauthHost);
+    const oauthHost = this.oauthHostFor(name, options.oauthRef, options.oauthHost);
+    const oauthKey =
+      options.oauthRef?.key ?? this.defaultOAuthKey(name, options.baseUrl, oauthHost);
     const manager = this.managerFor(name, oauthKey, oauthHost);
     const hadToken = await manager.hasToken();
     let usedDeviceLogin = false;
@@ -234,8 +255,8 @@ export class KimiOAuthToolkit<TConfig = unknown> {
     oauthRef?: KimiOAuthTokenRef | undefined,
   ): Promise<KimiOAuthLogoutResult> {
     const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
-    const oauthHost = this.oauthHostFor(oauthRef);
-    const oauthKey = oauthRef?.key ?? this.defaultOAuthKey(undefined, oauthHost);
+    const oauthHost = this.oauthHostFor(name, oauthRef);
+    const oauthKey = oauthRef?.key ?? this.defaultOAuthKey(name, undefined, oauthHost);
     await this.managerFor(name, oauthKey, oauthHost).logout();
     if (this.configAdapter?.remove !== undefined && name === KIMI_CODE_PROVIDER_NAME) {
       const config = await this.configAdapter.read();
@@ -253,8 +274,8 @@ export class KimiOAuthToolkit<TConfig = unknown> {
     } = {},
   ): Promise<string> {
     const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
-    const oauthHost = this.oauthHostFor(options.oauthRef);
-    const oauthKey = options.oauthRef?.key ?? this.defaultOAuthKey(undefined, oauthHost);
+    const oauthHost = this.oauthHostFor(name, options.oauthRef);
+    const oauthKey = options.oauthRef?.key ?? this.defaultOAuthKey(name, undefined, oauthHost);
     return this.managerFor(name, oauthKey, oauthHost).ensureFresh(options);
   }
 
@@ -263,8 +284,8 @@ export class KimiOAuthToolkit<TConfig = unknown> {
     oauthRef?: KimiOAuthTokenRef,
   ): Promise<string | undefined> {
     const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
-    const oauthHost = this.oauthHostFor(oauthRef);
-    const oauthKey = oauthRef?.key ?? this.defaultOAuthKey(undefined, oauthHost);
+    const oauthHost = this.oauthHostFor(name, oauthRef);
+    const oauthKey = oauthRef?.key ?? this.defaultOAuthKey(name, undefined, oauthHost);
     return this.managerFor(name, oauthKey, oauthHost).getCachedAccessToken();
   }
 
@@ -273,11 +294,16 @@ export class KimiOAuthToolkit<TConfig = unknown> {
     oauthRef?: KimiOAuthTokenRef | undefined,
   ): BearerTokenProvider {
     const name = providerName ?? KIMI_CODE_PROVIDER_NAME;
-    const oauthHost = this.oauthHostFor(oauthRef);
-    const oauthKey = oauthRef?.key ?? this.defaultOAuthKey(undefined, oauthHost);
-    return {
-      getAccessToken: (options) => this.managerFor(name, oauthKey, oauthHost).ensureFresh(options),
-    };
+    const oauthHost = this.oauthHostFor(name, oauthRef);
+    const oauthKey = oauthRef?.key ?? this.defaultOAuthKey(name, undefined, oauthHost);
+    const getAccessToken = (options?: { readonly force?: boolean | undefined }): Promise<string> =>
+      this.managerFor(name, oauthKey, oauthHost).ensureFresh(options);
+    return name === OPENAI_CODEX_PROVIDER_NAME
+      ? {
+          getAccessToken,
+          getRequestAuth: async (options) => openAICodexRequestAuth(await getAccessToken(options)),
+        }
+      : { getAccessToken };
   }
 
   async getManagedUsage(
@@ -404,7 +430,9 @@ export class KimiOAuthToolkit<TConfig = unknown> {
     oauthHost?: string | undefined,
   ): OAuthManager {
     const storageName = resolveKimiTokenStorageName({ providerName, oauthKey });
-    const effectiveOAuthHost = oauthHost ?? this.flowConfig.oauthHost;
+    const isOpenAICodex = providerName === OPENAI_CODEX_PROVIDER_NAME;
+    const flowConfig = isOpenAICodex ? OPENAI_CODEX_FLOW_CONFIG : this.flowConfig;
+    const effectiveOAuthHost = oauthHost ?? flowConfig.oauthHost;
     const managerKey = `${storageName}\0${normalizeOAuthHost(effectiveOAuthHost)}`;
     let manager = this.managers.get(managerKey);
     if (manager !== undefined) return manager;
@@ -412,14 +440,14 @@ export class KimiOAuthToolkit<TConfig = unknown> {
     const identity = this.identity;
     manager = new OAuthManager({
       config: {
-        ...this.flowConfig,
+        ...flowConfig,
         oauthHost: effectiveOAuthHost,
         name: storageName,
       },
       storage: this.storage,
       configDir: this.homeDir,
       deviceHeaders:
-        identity === undefined
+        isOpenAICodex || identity === undefined
           ? undefined
           : () =>
               // Full identity headers (User-Agent + X-Msh-*): the OAuth host
@@ -429,6 +457,19 @@ export class KimiOAuthToolkit<TConfig = unknown> {
                 homeDir: this.homeDir,
                 ...identity,
               }),
+      ...(isOpenAICodex
+        ? {
+            requestDeviceImpl: (config: OAuthFlowConfig) =>
+              requestOpenAICodexDeviceAuthorization(config, this.fetchImpl ?? fetch),
+            pollDeviceImpl: (config: OAuthFlowConfig, deviceCode: string) =>
+              pollOpenAICodexDeviceToken(config, deviceCode, this.fetchImpl ?? fetch),
+            refreshTokenImpl: (
+              config: OAuthFlowConfig,
+              refreshToken: string,
+              options?: unknown,
+            ) => refreshOpenAICodexToken(config, refreshToken, options, this.fetchImpl ?? fetch),
+          }
+        : {}),
       ...this.managerOptions,
     });
     this.managers.set(managerKey, manager);
@@ -436,9 +477,11 @@ export class KimiOAuthToolkit<TConfig = unknown> {
   }
 
   private defaultOAuthKey(
+    providerName: string,
     baseUrl?: string | undefined,
     oauthHost?: string | undefined,
   ): string {
+    if (providerName === OPENAI_CODEX_PROVIDER_NAME) return OPENAI_CODEX_OAUTH_KEY;
     return resolveKimiCodeOAuthKey({
       oauthHost: oauthHost ?? this.flowConfig.oauthHost,
       baseUrl,
@@ -447,16 +490,23 @@ export class KimiOAuthToolkit<TConfig = unknown> {
 
   private defaultOAuthRef(baseUrl?: string | undefined): KimiOAuthTokenRef {
     return {
-      key: this.defaultOAuthKey(baseUrl, this.flowConfig.oauthHost),
+      key: this.defaultOAuthKey(KIMI_CODE_PROVIDER_NAME, baseUrl, this.flowConfig.oauthHost),
       oauthHost: this.flowConfig.oauthHost,
     };
   }
 
   private oauthHostFor(
+    providerName: string,
     oauthRef?: KimiOAuthTokenRef | undefined,
     oauthHost?: string | undefined,
   ): string {
-    return oauthRef?.oauthHost ?? oauthHost ?? this.flowConfig.oauthHost;
+    return (
+      oauthRef?.oauthHost ??
+      oauthHost ??
+      (providerName === OPENAI_CODEX_PROVIDER_NAME
+        ? OPENAI_CODEX_OAUTH_HOST
+        : this.flowConfig.oauthHost)
+    );
   }
 
   private identityHeaders(): Record<string, string> | undefined {

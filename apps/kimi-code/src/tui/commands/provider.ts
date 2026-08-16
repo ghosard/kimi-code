@@ -1,6 +1,7 @@
 import {
   applyCustomRegistryEntries,
   fetchCustomRegistry,
+  OPENAI_CODEX_PROVIDER_NAME,
   type CustomRegistrySource,
   type ManagedKimiConfigShape,
 } from '@moonshot-ai/kimi-code-oauth';
@@ -87,8 +88,11 @@ async function handleProviderManagerDeleteSource(
 }
 
 async function handleProviderDelete(host: SlashCommandHost, providerId: string): Promise<void> {
-  if (providerId === DEFAULT_OAUTH_PROVIDER_NAME) {
-    await host.harness.auth.logout(DEFAULT_OAUTH_PROVIDER_NAME);
+  if (
+    providerId === DEFAULT_OAUTH_PROVIDER_NAME ||
+    providerId === OPENAI_CODEX_PROVIDER_NAME
+  ) {
+    await host.harness.auth.logout(providerId);
     await host.authFlow.refreshConfigAfterLogout();
     await host.authFlow.clearActiveSessionAfterLogout();
     return;

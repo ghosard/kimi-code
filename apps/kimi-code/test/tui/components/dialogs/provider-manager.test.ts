@@ -45,6 +45,20 @@ describe('ProviderManagerComponent', () => {
     chalk.level = previousLevel;
   });
 
+  it('hides OAuth-backed providers from provider CRUD', () => {
+    const component = makeComponent({
+      providers: {
+        'openai-codex': {
+          type: 'openai_responses',
+          oauth: { storage: 'file', key: 'oauth/openai-codex' },
+        },
+      },
+    });
+
+    expect(rendered(component)).not.toContain('openai-codex');
+    expect(rendered(component)).toContain('Add New Platform');
+  });
+
   it('renders [ Add New Platform ] in the brand color, never muted, when not selected', () => {
     // A configured provider occupies row 0 (selected); the add row sits below
     // it and is therefore not the highlighted row.

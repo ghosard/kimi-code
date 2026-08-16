@@ -19,6 +19,9 @@ import { ErrorCodes, isKimiError, KimiError } from '../errors';
 
 export interface BearerTokenProvider {
   getAccessToken(options?: { readonly force?: boolean }): Promise<string>;
+  getRequestAuth?(
+    options?: { readonly force?: boolean },
+  ): Promise<ProviderRequestAuth>;
 }
 
 export type OAuthTokenProviderResolver = (
@@ -192,9 +195,13 @@ export class ProviderManager implements ModelProvider {
 
     const log = options?.log;
     const fetchAuth = async (force: boolean): Promise<ProviderRequestAuth> => {
-      let apiKey: string;
+      let auth: ProviderRequestAuth;
       try {
-        apiKey = await tokenProvider.getAccessToken(force ? { force: true } : undefined);
+        const refreshOptions = force ? { force: true } : undefined;
+        auth =
+          tokenProvider.getRequestAuth === undefined
+            ? { apiKey: await tokenProvider.getAccessToken(refreshOptions) }
+            : await tokenProvider.getRequestAuth(refreshOptions);
       } catch (error) {
         // login-required is an expected state (the user must /login); don't
         // warn. Other failures (connection errors, etc.) are logged once for
@@ -204,8 +211,8 @@ export class ProviderManager implements ModelProvider {
         }
         throw error;
       }
-      if (apiKey.trim().length === 0) throw loginRequired();
-      return { apiKey };
+      if ((auth.apiKey ?? '').trim().length === 0) throw loginRequired();
+      return auth;
     };
 
     return async (request) => {

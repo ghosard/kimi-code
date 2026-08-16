@@ -76,7 +76,27 @@ describe('kimi login', () => {
 
     expect(mockLogin).toHaveBeenCalledTimes(1);
     expect(mockLogin).toHaveBeenCalledWith(
-      undefined,
+      'managed:kimi-code',
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        onDeviceCode: expect.any(Function),
+      }),
+    );
+    expect(exitSpy).toHaveBeenCalledWith(0);
+  });
+
+  it('accepts openai-codex as the subscription provider', async () => {
+    mockLogin.mockResolvedValue({ providerName: 'openai-codex', ok: true });
+
+    const program = new Command('kimi').exitOverride();
+    registerLoginCommand(program);
+
+    await expect(
+      program.parseAsync(['node', 'kimi', 'login', 'openai-codex']),
+    ).rejects.toThrow(ExitCalled);
+
+    expect(mockLogin).toHaveBeenCalledWith(
+      'openai-codex',
       expect.objectContaining({
         signal: expect.any(AbortSignal),
         onDeviceCode: expect.any(Function),

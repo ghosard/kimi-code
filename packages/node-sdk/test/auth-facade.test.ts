@@ -6,6 +6,7 @@ import {
   FileTokenStorage,
   KIMI_CODE_PROVIDER_NAME,
   KimiOAuthToolkit,
+  OPENAI_CODEX_PROVIDER_NAME,
   OAuthConnectionError,
   OAuthError,
   RetryableRefreshError,
@@ -42,6 +43,16 @@ function freshToken(): TokenInfo {
     tokenType: 'Bearer',
     expiresIn: 3600,
   };
+}
+
+function codexAccessToken(accountId = 'acct-sdk-test'): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'none' })).toString('base64url');
+  const payload = Buffer.from(
+    JSON.stringify({
+      'https://api.openai.com/auth': { chatgpt_account_id: accountId },
+    }),
+  ).toString('base64url');
+  return `${header}.${payload}.signature`;
 }
 
 beforeEach(async () => {
@@ -261,6 +272,40 @@ oauth = { storage = "file", key = "${oauthKey}", oauth_host = "https://auth.dev.
     expect(config.services?.moonshotSearch?.oauth).toEqual({
       storage: 'file',
       key: 'oauth/kimi-code',
+    });
+  });
+
+  it('provisions SDK config from the OpenAI Codex model snapshot', async () => {
+    await new FileTokenStorage(join(homeDir, 'credentials')).save('openai-codex', {
+      ...freshToken(),
+      accessToken: codexAccessToken(),
+    });
+    const harness = createKimiHarness({ homeDir, identity: TEST_IDENTITY });
+
+    await expect(harness.auth.login(OPENAI_CODEX_PROVIDER_NAME)).resolves.toMatchObject({
+      providerName: OPENAI_CODEX_PROVIDER_NAME,
+      defaultModel: 'openai-codex/gpt-5.6-sol',
+      defaultThinking: true,
+    });
+
+    const config = await harness.getConfig({ reload: true });
+    expect(config.providers[OPENAI_CODEX_PROVIDER_NAME]).toMatchObject({
+      type: 'openai_responses',
+      baseUrl: 'https://chatgpt.com/backend-api/codex',
+      oauth: { storage: 'file', key: 'oauth/openai-codex' },
+    });
+    expect(config.models?.['openai-codex/gpt-5.6-sol']).toMatchObject({
+      maxContextSize: 272000,
+      maxOutputSize: 128000,
+      capabilities: ['thinking', 'image_in', 'tool_use'],
+    });
+    await expect(
+      harness.auth
+        .resolveOAuthTokenProvider(OPENAI_CODEX_PROVIDER_NAME)
+        .getRequestAuth?.(),
+    ).resolves.toMatchObject({
+      apiKey: codexAccessToken(),
+      headers: { 'chatgpt-account-id': 'acct-sdk-test' },
     });
   });
 

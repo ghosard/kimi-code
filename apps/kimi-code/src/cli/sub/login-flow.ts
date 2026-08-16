@@ -6,11 +6,19 @@
  */
 
 import { createKimiHarness } from '@moonshot-ai/kimi-code-sdk';
+import {
+  KIMI_CODE_PROVIDER_NAME,
+  OPENAI_CODEX_PROVIDER_NAME,
+} from '@moonshot-ai/kimi-code-oauth';
 
 import { createKimiCodeHostIdentity } from '#/cli/version';
 import { openUrl } from '#/utils/open-url';
 
-export async function runLoginFlow(): Promise<never> {
+export async function runLoginFlow(
+  providerName: string = KIMI_CODE_PROVIDER_NAME,
+): Promise<never> {
+  const providerLabel =
+    providerName === OPENAI_CODEX_PROVIDER_NAME ? 'OpenAI Codex' : 'Kimi Code';
   const identity = createKimiCodeHostIdentity();
   const harness = createKimiHarness({
     identity,
@@ -21,7 +29,7 @@ export async function runLoginFlow(): Promise<never> {
     controller.abort();
   });
   try {
-    const result = await harness.auth.login(undefined, {
+    const result = await harness.auth.login(providerName, {
       signal: controller.signal,
       onDeviceCode: (data) => {
         const url = data.verificationUriComplete || data.verificationUri;
@@ -31,7 +39,7 @@ export async function runLoginFlow(): Promise<never> {
         process.stderr.write(
           [
             '',
-            `Opening browser for Kimi device login: ${url}`,
+            `Opening browser for ${providerLabel} device login: ${url}`,
             `If the browser did not open, paste the URL above and enter code: ${data.userCode}`,
             data.expiresIn !== null && data.expiresIn !== undefined
               ? `Code expires in ${data.expiresIn}s.`

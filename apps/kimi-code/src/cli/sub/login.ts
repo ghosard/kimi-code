@@ -7,14 +7,28 @@
  */
 
 import type { Command } from 'commander';
+import {
+  KIMI_CODE_PROVIDER_NAME,
+  OPENAI_CODEX_PROVIDER_NAME,
+} from '@moonshot-ai/kimi-code-oauth';
 
 import { runLoginFlow } from './login-flow';
 
 export function registerLoginCommand(parent: Command): void {
   parent
     .command('login')
-    .description('Authenticate with Kimi Code CLI via the device-code flow.')
-    .action(async () => {
-      await runLoginFlow();
+    .description('Authenticate with Kimi Code or OpenAI Codex via a device-code flow.')
+    .argument('[provider]', 'kimi-code or openai-codex', 'kimi-code')
+    .action(async (provider: string) => {
+      const providerName =
+        provider === 'kimi-code'
+          ? KIMI_CODE_PROVIDER_NAME
+          : provider === OPENAI_CODEX_PROVIDER_NAME
+            ? OPENAI_CODEX_PROVIDER_NAME
+            : undefined;
+      if (providerName === undefined) {
+        throw new Error(`Unknown OAuth provider "${provider}".`);
+      }
+      await runLoginFlow(providerName);
     });
 }

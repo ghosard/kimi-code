@@ -3,6 +3,24 @@
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Docs](https://img.shields.io/badge/docs-online-blue)](https://moonshotai.github.io/kimi-code/en/) <br>
 [Documentation](https://moonshotai.github.io/kimi-code/en/) · [Issues](https://github.com/MoonshotAI/kimi-code/issues) · [中文](README.zh-CN.md)
 
+## About this fork
+
+This fork adds ChatGPT subscription login and OpenAI Codex models to Kimi Code CLI.
+
+- Run `kimi login openai-codex`, or choose **OpenAI Codex** from `/login`, to authenticate with the browser-based device-code flow. No API key or local callback port is required.
+- The access and refresh tokens are managed by Kimi Code's existing OAuth storage. Both agent engines resolve the token dynamically and send Codex requests to `https://chatgpt.com/backend-api/codex`.
+- Codex requests carry the ChatGPT account header and stable session affinity (`prompt_cache_key`, `session-id`, and `x-client-request-id`) for better prompt-cache reuse. Parameters unsupported by the subscription endpoint are filtered out.
+- The provider and model snapshot lives in [`packages/oauth/src/openai-codex-models.json`](packages/oauth/src/openai-codex-models.json). Future model updates only require editing this JSON file and logging in again to refresh the generated local configuration.
+
+The device authorization flow, Codex request behavior, and model-maintenance approach are adapted from the MIT-licensed [`earendil-works/pi`](https://github.com/earendil-works/pi) project. The implementation is integrated into Kimi Code's own provider, OAuth, SDK, CLI, and TUI boundaries rather than embedding Pi as a dependency.
+
+From a source checkout:
+
+```sh
+npm --prefix apps/kimi-code run dev -- login openai-codex
+npm --prefix apps/kimi-code run dev
+```
+
 ![Demo of using Kimi Code](./docs/media/intro.gif)
 
 ## What is Kimi Code CLI

@@ -60,6 +60,7 @@ export interface StreamedMessage {
 export interface ProviderRequestAuth {
   apiKey?: string;
   headers?: Record<string, string>;
+  sessionAffinity?: 'openai-codex';
 }
 
 export interface SamplingOptions {

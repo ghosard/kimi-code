@@ -128,6 +128,8 @@ export interface ProviderRequestAuth {
   apiKey?: string;
   /** Request-scoped headers. These override constructor-level default headers. */
   headers?: Record<string, string>;
+  /** Provider-specific session-affinity headers should follow the prompt cache key. */
+  sessionAffinity?: 'openai-codex';
 }
 
 export interface GenerateOptions {

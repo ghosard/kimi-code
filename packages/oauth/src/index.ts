@@ -43,6 +43,30 @@ export type { KimiHostIdentity, KimiIdentityOptions } from './identity';
 export { KIMI_CODE_FLOW_CONFIG } from './constants';
 
 export {
+  applyOpenAICodexConfig,
+  applyOpenAICodexLogoutConfig,
+  openAICodexAccountId,
+  openAICodexCatalog,
+  openAICodexOAuthRef,
+  openAICodexRequestAuth,
+  OPENAI_CODEX_CLIENT_ID,
+  OPENAI_CODEX_DEVICE_VERIFICATION_URL,
+  OPENAI_CODEX_FLOW_CONFIG,
+  OPENAI_CODEX_OAUTH_HOST,
+  OPENAI_CODEX_OAUTH_KEY,
+  OPENAI_CODEX_PROVIDER_NAME,
+  pollOpenAICodexDeviceToken,
+  refreshOpenAICodexToken,
+  requestOpenAICodexDeviceAuthorization,
+} from './openai-codex';
+export type {
+  OpenAICodexCatalog,
+  OpenAICodexConfigApplyOptions,
+  OpenAICodexModel,
+  OpenAICodexRequestAuth,
+} from './openai-codex';
+
+export {
   applyManagedApiKeyProviderModels,
   applyManagedKimiCodeLogoutConfig,
   applyManagedKimiCodeConfig,
@@ -181,6 +205,7 @@ export type {
   AuthManagedUsageResult,
   AuthProviderStatus,
   AuthStatus,
+  BearerRequestAuth,
   BearerTokenProvider,
   KimiOAuthLoginOptions,
   KimiOAuthLoginResult,

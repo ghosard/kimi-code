@@ -31,6 +31,7 @@ export type SupportsThinkingType = 'only' | 'no' | 'both';
 export interface ManagedKimiCodeModelInfo {
   readonly id: string;
   readonly contextLength: number;
+  readonly maxOutputSize?: number;
   readonly supportsReasoning: boolean;
   readonly supportsImageIn: boolean;
   readonly supportsVideoIn: boolean;
@@ -128,7 +129,7 @@ export class ManagedKimiCodeModelsAuthError extends OAuthUnauthorizedError {
 }
 
 export interface ManagedKimiProviderConfig {
-  type: ManagedKimiCodeProtocol;
+  type: ManagedKimiCodeProtocol | 'openai_responses';
   baseUrl?: string | undefined;
   apiKey?: string | undefined;
   oauth?: ManagedKimiOAuthRef | undefined;
@@ -151,6 +152,7 @@ export interface ManagedKimiModelAlias {
   provider: string;
   model: string;
   maxContextSize: number;
+  maxOutputSize?: number | undefined;
   capabilities?: string[] | undefined;
   supportEfforts?: readonly string[] | undefined;
   defaultEffort?: string | undefined;
@@ -546,6 +548,7 @@ export function toManagedModelAlias(
     provider: providerId,
     model: model.id,
     maxContextSize: model.contextLength,
+    ...(model.maxOutputSize !== undefined ? { maxOutputSize: model.maxOutputSize } : {}),
     capabilities,
     ...(model.displayName !== undefined ? { displayName: model.displayName } : {}),
     ...(model.supportEfforts !== undefined ? { supportEfforts: model.supportEfforts } : {}),

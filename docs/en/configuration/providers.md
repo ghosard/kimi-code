@@ -1,6 +1,6 @@
 # Providers and models
 
-Kimi Code CLI supports connecting to multiple LLM platforms simultaneously — one-click login via the Kimi Code managed service, connecting Claude with an Anthropic API key, or connecting third-party inference services via the OpenAI-compatible protocol. Each provider corresponds to a specific API protocol; models are declared on top of providers with their own name, context length, and capabilities. This page explains how to configure each type of provider in `config.toml`.
+Kimi Code CLI supports connecting to multiple LLM platforms simultaneously — one-click login via the Kimi Code managed service, ChatGPT subscription login for OpenAI Codex, connecting Claude with an Anthropic API key, or connecting third-party inference services via the OpenAI-compatible protocol. Each provider corresponds to a specific API protocol; models are declared on top of providers with their own name, context length, and capabilities. This page explains how to configure each type of provider in `config.toml`.
 
 ## Supported provider types
 
@@ -35,7 +35,7 @@ Two paths when adding:
 - **Custom registry (api.json)**: paste a custom registry URL and Bearer token; the CLI automatically creates the `providers` / `models` entries. On later startup, providers from the same registry URL are refreshed together, so upstream provider additions, removals, and model metadata changes are synced.
 
 ::: warning
-Kimi Code OAuth managed accounts logged in via `/login` do not appear in `/provider`. Use `/login` and `/logout` to manage them.
+OAuth accounts logged in via `/login` do not appear in `/provider`. Use `/login` and `/logout` to manage them.
 :::
 
 The same operations are also available in non-interactive environments via the shell command: [`kimi provider`](../reference/kimi-command.md#kimi-provider).
@@ -154,7 +154,20 @@ To route Vertex requests through a custom (e.g. proxied) endpoint, set `base_url
 
 ## OAuth and credential injection
 
-The Kimi Code managed service uses OAuth rather than static API keys. After running `/login`, the built-in authentication toolchain automatically writes and refreshes credentials — no manual configuration is needed in `config.toml` for this.
+The Kimi Code managed service and OpenAI Codex subscription provider use OAuth rather than static API keys. In the TUI, run `/login` and select the desired provider. In a shell, use:
+
+```sh
+kimi login                 # Kimi Code
+kimi login openai-codex    # ChatGPT subscription / OpenAI Codex
+```
+
+The OpenAI Codex flow uses a device code and a ChatGPT subscription that includes Codex; it does not consume an OpenAI API key. Login writes the provider and model aliases to `config.toml`, while access and refresh tokens stay in the credential store.
+
+For prompt caching, Kimi Code reuses the session id as the Responses API cache key and as the Codex cache-affinity headers. This is automatic and requires no user configuration.
+
+### Maintaining the OpenAI Codex model list
+
+The bundled Codex model snapshot lives in `packages/oauth/src/openai-codex-models.json`. Model ids, display names, context/output limits, capabilities, supported reasoning efforts, and the default model are all data in that file. When OpenAI changes the subscription model lineup, update the JSON snapshot; OAuth protocol code does not need to change.
 
 ## Next steps
 

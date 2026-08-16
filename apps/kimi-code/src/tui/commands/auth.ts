@@ -3,6 +3,7 @@ import {
   fetchOpenPlatformModels,
   filterModelsByPrefix,
   getOpenPlatformById,
+  OPENAI_CODEX_PROVIDER_NAME,
   OpenPlatformApiError,
   type ManagedKimiCodeModelInfo,
   type ManagedKimiConfigShape,
@@ -31,7 +32,11 @@ export async function handleLoginCommand(host: SlashCommandHost): Promise<void> 
   if (platformId === undefined) return;
 
   if (platformId === 'kimi-code') {
-    await handleKimiCodeOAuthLogin(host);
+    await handleOAuthLogin(host, DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME);
+    return;
+  }
+  if (platformId === OPENAI_CODEX_PROVIDER_NAME) {
+    await handleOAuthLogin(host, OPENAI_CODEX_PROVIDER_NAME, 'OpenAI Codex');
     return;
   }
 
@@ -40,10 +45,14 @@ export async function handleLoginCommand(host: SlashCommandHost): Promise<void> 
   await handleOpenPlatformLogin(host, platform);
 }
 
-async function handleKimiCodeOAuthLogin(host: SlashCommandHost): Promise<void> {
-  const status = await host.harness.auth.status(DEFAULT_OAUTH_PROVIDER_NAME);
+async function handleOAuthLogin(
+  host: SlashCommandHost,
+  providerName: string,
+  providerLabel: string,
+): Promise<void> {
+  const status = await host.harness.auth.status(providerName);
   const alreadyLoggedIn = status.providers.some(
-    (provider) => provider.providerName === DEFAULT_OAUTH_PROVIDER_NAME && provider.hasToken,
+    (provider) => provider.providerName === providerName && provider.hasToken,
   );
 
   let spinner: LoginProgressSpinnerHandle | undefined;
@@ -53,7 +62,7 @@ async function handleKimiCodeOAuthLogin(host: SlashCommandHost): Promise<void> {
   };
   host.cancelInFlight = cancelLogin;
   try {
-    await host.harness.auth.login(DEFAULT_OAUTH_PROVIDER_NAME, {
+    await host.harness.auth.login(providerName, {
       signal: controller.signal,
       onDeviceCode: (data) => {
         spinner = host.showLoginAuthorizationPrompt(data);
@@ -69,12 +78,15 @@ async function handleKimiCodeOAuthLogin(host: SlashCommandHost): Promise<void> {
       return;
     }
     host.track('login', {
-      provider: DEFAULT_OAUTH_PROVIDER_NAME,
+      provider: providerName,
       method: 'oauth',
       already_logged_in: alreadyLoggedIn,
     });
     if (alreadyLoggedIn) {
-      host.showStatus('Already logged in. Model configuration refreshed.', 'success');
+      host.showStatus(
+        `Already logged in to ${providerLabel}. Model configuration refreshed.`,
+        'success',
+      );
     }
   } catch (error) {
     const cancelled = controller.signal.aborted;
@@ -85,7 +97,7 @@ async function handleKimiCodeOAuthLogin(host: SlashCommandHost): Promise<void> {
     spinner = undefined;
     if (cancelled) return;
     log.warn('login failed', {
-      providerName: DEFAULT_OAUTH_PROVIDER_NAME,
+      providerName,
       alreadyLoggedIn,
       sessionId: host.session?.id,
       error,
@@ -180,24 +192,30 @@ async function handleOpenPlatformLogin(
 }
 
 export async function handleLogoutCommand(host: SlashCommandHost): Promise<void> {
-  const oauthStatus = await host.harness.auth.status(DEFAULT_OAUTH_PROVIDER_NAME);
-  const hasOAuthToken = oauthStatus.providers.some(
-    (p) => p.providerName === DEFAULT_OAUTH_PROVIDER_NAME && p.hasToken,
+  const oauthProviders = [
+    { id: DEFAULT_OAUTH_PROVIDER_NAME, label: PRODUCT_NAME },
+    { id: OPENAI_CODEX_PROVIDER_NAME, label: 'OpenAI Codex' },
+  ] as const;
+  const oauthStatuses = await Promise.all(
+    oauthProviders.map(async (provider) => ({
+      provider,
+      status: await host.harness.auth.status(provider.id),
+    })),
   );
   const config = await host.harness.getConfig();
-  const hasManagedRemnant =
-    hasOAuthToken || config.providers[DEFAULT_OAUTH_PROVIDER_NAME] !== undefined;
+  const oauthProviderIds = new Set<string>(oauthProviders.map((provider) => provider.id));
   const apiKeyProviderIds = Object.keys(config.providers ?? {})
-    .filter((id) => id !== DEFAULT_OAUTH_PROVIDER_NAME)
+    .filter((id) => !oauthProviderIds.has(id))
     .toSorted();
 
   const options: ChoiceOption[] = [];
-  if (hasManagedRemnant) {
-    options.push({
-      value: DEFAULT_OAUTH_PROVIDER_NAME,
-      label: PRODUCT_NAME,
-      description: 'OAuth login',
-    });
+  for (const { provider, status } of oauthStatuses) {
+    const hasToken = status.providers.some(
+      (item) => item.providerName === provider.id && item.hasToken,
+    );
+    if (hasToken || config.providers[provider.id] !== undefined) {
+      options.push({ value: provider.id, label: provider.label, description: 'OAuth login' });
+    }
   }
   for (const id of apiKeyProviderIds) {
     const baseUrl = config.providers[id]?.baseUrl;
@@ -219,8 +237,8 @@ export async function handleLogoutCommand(host: SlashCommandHost): Promise<void>
   const target = await promptLogoutProviderSelection(host, options, currentProvider);
   if (target === undefined) return;
 
-  if (target === DEFAULT_OAUTH_PROVIDER_NAME) {
-    await host.harness.auth.logout(DEFAULT_OAUTH_PROVIDER_NAME);
+  if (oauthProviderIds.has(target)) {
+    await host.harness.auth.logout(target);
   } else {
     await host.harness.removeProvider(target);
   }
@@ -237,6 +255,6 @@ export async function handleLogoutCommand(host: SlashCommandHost): Promise<void>
   }
 
   host.track('logout', { provider: target });
-  const label = target === DEFAULT_OAUTH_PROVIDER_NAME ? PRODUCT_NAME : target;
+  const label = oauthProviders.find((provider) => provider.id === target)?.label ?? target;
   host.showStatus(`Logged out from ${label}.`);
 }
