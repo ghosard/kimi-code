@@ -31,7 +31,7 @@ npm --prefix apps/kimi-code run dev
 
 The fork is published by [`.github/workflows/publish-npm.yml`](.github/workflows/publish-npm.yml)
 with npm Trusted Publishing. Run the workflow with a semantic version, or push a tag such as
-`npm-v0.36.2`; no long-lived npm token is stored in GitHub.
+`npm-v0.37.1`; no long-lived npm token is stored in GitHub.
 
 ![Demo of using Kimi Code](./docs/media/intro.gif)
 
