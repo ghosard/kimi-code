@@ -1,4 +1,4 @@
-name: Publish fork to npm
+name: Publish to npm
 
 on:
   push:

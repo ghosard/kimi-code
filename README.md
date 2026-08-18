@@ -29,7 +29,7 @@ npm --prefix apps/kimi-code run dev -- login openai-codex --method device-code
 npm --prefix apps/kimi-code run dev
 ```
 
-The fork is published by [`.github/workflows/publish-npm.yml`](.github/workflows/publish-npm.yml)
+The fork is published by [`.github/workflows/publish.yml`](.github/workflows/publish.yml)
 with npm Trusted Publishing. Run the workflow with a semantic version, or push a tag such as
 `npm-v0.37.1`; no long-lived npm token is stored in GitHub.
 
