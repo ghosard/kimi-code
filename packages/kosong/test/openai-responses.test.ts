@@ -1537,7 +1537,7 @@ describe('OpenAIResponsesChatProvider', () => {
             usage: {
               input_tokens: 20,
               output_tokens: 10,
-              input_tokens_details: { cached_tokens: 5 },
+              input_tokens_details: { cached_tokens: 5, cache_write_tokens: 4 },
             },
           },
         },
@@ -1571,10 +1571,10 @@ describe('OpenAIResponsesChatProvider', () => {
       ]);
 
       expect(stream.usage).toEqual({
-        inputOther: 15,
+        inputOther: 11,
         output: 10,
         inputCacheRead: 5,
-        inputCacheCreation: 0,
+        inputCacheCreation: 4,
       });
     });
 

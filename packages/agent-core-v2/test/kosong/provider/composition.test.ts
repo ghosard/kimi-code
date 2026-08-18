@@ -518,7 +518,9 @@ function anthropicMessageResponse(): Record<string, unknown> {
   };
 }
 
-async function* responsesEventStream(): AsyncIterable<unknown> {
+async function* responsesEventStream(
+  usage: Record<string, unknown> = { input_tokens: 3, output_tokens: 1, total_tokens: 4 },
+): AsyncIterable<unknown> {
   yield { type: 'response.created', response: { id: 'resp_probe' } };
   yield { type: 'response.output_text.delta', delta: 'Hello' };
   yield {
@@ -526,7 +528,7 @@ async function* responsesEventStream(): AsyncIterable<unknown> {
     response: {
       id: 'resp_probe',
       status: 'completed',
-      usage: { input_tokens: 3, output_tokens: 1, total_tokens: 4 },
+      usage,
     },
   };
 }
@@ -714,6 +716,37 @@ describe('per-turn intent wire encoding (behavior probes)', () => {
         'x-client-request-id': sessionId,
       },
       sessionAffinity: 'openai-codex',
+    });
+  });
+
+  it('reports Responses cache reads and writes separately from uncached input', async () => {
+    const provider = new OpenAIResponsesChatProvider({
+      model: 'gpt-5.6-sol',
+      clientFactory: () =>
+        ({
+          responses: {
+            create: vi.fn().mockResolvedValue(
+              responsesEventStream({
+                input_tokens: 20,
+                output_tokens: 2,
+                total_tokens: 22,
+                input_tokens_details: { cached_tokens: 8, cache_write_tokens: 5 },
+              }),
+            ),
+          },
+        }) as never,
+    });
+
+    const stream = await provider.generate('', [], PROBE_HISTORY, {
+      auth: { apiKey: 'sk-probe' },
+    });
+    await drain(stream);
+
+    expect(stream.usage).toEqual({
+      inputOther: 7,
+      output: 2,
+      inputCacheRead: 8,
+      inputCacheCreation: 5,
     });
   });
 
