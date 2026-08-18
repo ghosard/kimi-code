@@ -45,11 +45,13 @@ export { KIMI_CODE_FLOW_CONFIG } from './constants';
 export {
   applyOpenAICodexConfig,
   applyOpenAICodexLogoutConfig,
+  loginOpenAICodexBrowser,
   openAICodexAccountId,
   openAICodexCatalog,
   openAICodexOAuthRef,
   openAICodexRequestAuth,
   OPENAI_CODEX_CLIENT_ID,
+  OPENAI_CODEX_BROWSER_REDIRECT_URL,
   OPENAI_CODEX_DEVICE_VERIFICATION_URL,
   OPENAI_CODEX_FLOW_CONFIG,
   OPENAI_CODEX_OAUTH_HOST,
@@ -61,7 +63,10 @@ export {
 } from './openai-codex';
 export type {
   OpenAICodexCatalog,
+  OpenAICodexBrowserAuthorization,
+  OpenAICodexBrowserLoginOptions,
   OpenAICodexConfigApplyOptions,
+  OpenAICodexLoginMethod,
   OpenAICodexModel,
   OpenAICodexRequestAuth,
 } from './openai-codex';

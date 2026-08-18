@@ -5,11 +5,14 @@ import {
   getOpenPlatformById,
   OPENAI_CODEX_PROVIDER_NAME,
   OpenPlatformApiError,
+  type OpenAICodexLoginMethod,
   type ManagedKimiCodeModelInfo,
   type ManagedKimiConfigShape,
   type OpenPlatformDefinition,
 } from '@moonshot-ai/kimi-code-oauth';
 import { log } from '@moonshot-ai/kimi-code-sdk';
+
+import { openUrl } from '#/utils/open-url';
 
 import type { ChoiceOption } from '../components/dialogs/choice-picker';
 import { DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME } from '../constant/kimi-tui';
@@ -19,6 +22,7 @@ import {
   promptApiKey,
   promptLogoutProviderSelection,
   promptModelSelectionForOpenPlatform,
+  promptOpenAICodexLoginMethod,
   promptPlatformSelection,
 } from './prompts';
 import type { SlashCommandHost } from './dispatch';
@@ -32,11 +36,13 @@ export async function handleLoginCommand(host: SlashCommandHost): Promise<void> 
   if (platformId === undefined) return;
 
   if (platformId === 'kimi-code') {
-    await handleOAuthLogin(host, DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME);
+    await handleOAuthLogin(host, DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME, 'device-code');
     return;
   }
   if (platformId === OPENAI_CODEX_PROVIDER_NAME) {
-    await handleOAuthLogin(host, OPENAI_CODEX_PROVIDER_NAME, 'OpenAI Codex');
+    const loginMethod = await promptOpenAICodexLoginMethod(host);
+    if (loginMethod === undefined) return;
+    await handleOAuthLogin(host, OPENAI_CODEX_PROVIDER_NAME, 'OpenAI Codex', loginMethod);
     return;
   }
 
@@ -49,6 +55,7 @@ async function handleOAuthLogin(
   host: SlashCommandHost,
   providerName: string,
   providerLabel: string,
+  loginMethod: OpenAICodexLoginMethod,
 ): Promise<void> {
   const status = await host.harness.auth.status(providerName);
   const alreadyLoggedIn = status.providers.some(
@@ -64,6 +71,18 @@ async function handleOAuthLogin(
   try {
     await host.harness.auth.login(providerName, {
       signal: controller.signal,
+      loginMethod,
+      onAuthorizationUrl: ({ authorizationUrl, redirectUri }) => {
+        host.showStatus(
+          `Complete OpenAI login in your browser. If it did not open, visit:\n${authorizationUrl}\nCallback: ${redirectUri}`,
+        );
+        try {
+          openUrl(authorizationUrl);
+        } catch {
+          // Best effort only: the URL remains visible in the transcript.
+        }
+        spinner = host.showLoginProgressSpinner('Waiting for browser authorization…');
+      },
       onDeviceCode: (data) => {
         spinner = host.showLoginAuthorizationPrompt(data);
       },

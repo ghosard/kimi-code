@@ -31,7 +31,9 @@
     "native",
     "scripts/postinstall.mjs",
     "scripts/postinstall",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "type": "module",
   "imports": {

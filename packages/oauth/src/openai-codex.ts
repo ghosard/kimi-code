@@ -1,10 +1,14 @@
 /**
  * OpenAI Codex subscription OAuth and its maintained model snapshot.
  *
- * The device-code protocol follows Pi's MIT-licensed OpenAI Codex provider.
+ * The browser and device-code protocols follow Pi's MIT-licensed OpenAI
+ * Codex provider.
  * Model churn is isolated in `openai-codex-models.json`; authentication and
  * config provisioning consume that data without embedding model ids.
  */
+
+import { createHash, randomBytes } from 'node:crypto';
+import { createServer } from 'node:http';
 
 import { z } from 'zod';
 
@@ -26,9 +30,12 @@ export const OPENAI_CODEX_OAUTH_KEY = 'oauth/openai-codex';
 export const OPENAI_CODEX_OAUTH_HOST = 'https://auth.openai.com';
 export const OPENAI_CODEX_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
 export const OPENAI_CODEX_DEVICE_VERIFICATION_URL = `${OPENAI_CODEX_OAUTH_HOST}/codex/device`;
+export const OPENAI_CODEX_BROWSER_REDIRECT_URL = 'http://localhost:1455/auth/callback';
 
 const OPENAI_CODEX_DEVICE_REDIRECT_URL = `${OPENAI_CODEX_OAUTH_HOST}/deviceauth/callback`;
 const OPENAI_CODEX_DEVICE_TIMEOUT_SECONDS = 15 * 60;
+const OPENAI_CODEX_BROWSER_TIMEOUT_MS = 15 * 60 * 1000;
+const OPENAI_CODEX_BROWSER_SCOPE = 'openid profile email offline_access';
 const OPENAI_CODEX_ACCOUNT_CLAIM = 'https://api.openai.com/auth';
 
 export const OPENAI_CODEX_FLOW_CONFIG: OAuthFlowConfig = {
@@ -77,6 +84,24 @@ export interface OpenAICodexRequestAuth {
 
 export interface OpenAICodexConfigApplyOptions {
   readonly preserveDefaultModel?: boolean | undefined;
+}
+
+export type OpenAICodexLoginMethod = 'browser' | 'device-code';
+
+export interface OpenAICodexBrowserAuthorization {
+  readonly authorizationUrl: string;
+  readonly redirectUri: string;
+}
+
+export interface OpenAICodexBrowserLoginOptions {
+  readonly signal?: AbortSignal;
+  readonly fetchImpl?: typeof fetch;
+  readonly onAuthorizationUrl?: (
+    authorization: OpenAICodexBrowserAuthorization,
+  ) => Promise<void> | void;
+  readonly onManualCode?: (
+    authorization: OpenAICodexBrowserAuthorization & { readonly signal: AbortSignal },
+  ) => Promise<string | undefined>;
 }
 
 interface DeviceState {
@@ -188,6 +213,110 @@ export function openAICodexAccountId(accessToken: string): string | undefined {
   }
 }
 
+/**
+ * Authenticate a ChatGPT subscription with OAuth authorization-code + PKCE.
+ *
+ * The registered callback is fixed at localhost:1455 to match Codex CLI
+ * clients. A caller may additionally accept a pasted redirect URL/code, which
+ * keeps the flow usable when the callback port is occupied or forwarded from
+ * another machine.
+ */
+export async function loginOpenAICodexBrowser(
+  options: OpenAICodexBrowserLoginOptions = {},
+): Promise<TokenInfo> {
+  throwIfBrowserLoginAborted(options.signal);
+  const verifier = randomBytes(32).toString('base64url');
+  const challenge = createHash('sha256').update(verifier).digest('base64url');
+  const state = randomBytes(16).toString('hex');
+  const authorizationUrl = createOpenAICodexAuthorizationUrl(challenge, state);
+  const authorization = {
+    authorizationUrl,
+    redirectUri: OPENAI_CODEX_BROWSER_REDIRECT_URL,
+  } satisfies OpenAICodexBrowserAuthorization;
+  const callbackServer = await startOpenAICodexCallbackServer(state);
+  const manualAbort = new AbortController();
+  let timedOut = false;
+  const cancelWait = (): void => {
+    callbackServer.cancelWait();
+    manualAbort.abort();
+  };
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    cancelWait();
+  }, OPENAI_CODEX_BROWSER_TIMEOUT_MS);
+  timeout.unref();
+  options.signal?.addEventListener('abort', cancelWait, { once: true });
+  if (options.signal?.aborted === true) cancelWait();
+
+  try {
+    if (!callbackServer.listening && options.onManualCode === undefined) {
+      const detail = callbackServer.bindError?.message;
+      throw new OAuthError(
+        `Unable to listen for the OpenAI OAuth callback on localhost:1455${
+          detail === undefined ? '' : `: ${detail}`
+        }. Retry with device-code login.`,
+      );
+    }
+
+    await options.onAuthorizationUrl?.(authorization);
+
+    let manualInput: string | undefined;
+    let manualError: unknown;
+    const manualPromise = options.onManualCode?.({
+      ...authorization,
+      signal: manualAbort.signal,
+    })
+      .then((input) => {
+        manualInput = input;
+        callbackServer.cancelWait();
+      })
+      .catch((error: unknown) => {
+        if (!manualAbort.signal.aborted) manualError = error;
+        callbackServer.cancelWait();
+      });
+
+    const callback = await callbackServer.waitForCode();
+    if (callback?.kind === 'error') throw new OAuthError(callback.message);
+    let code = callback?.kind === 'code' ? callback.code : undefined;
+
+    if (code === undefined && manualPromise !== undefined) {
+      await manualPromise;
+      if (manualError !== undefined) {
+        throw manualError instanceof Error
+          ? manualError
+          : new OAuthError('OpenAI browser login manual-code prompt failed.');
+      }
+      if (manualInput !== undefined) {
+        const parsed = parseOpenAICodexAuthorizationInput(manualInput);
+        if (parsed.state !== undefined && parsed.state !== state) {
+          throw new OAuthError('OpenAI OAuth state mismatch.');
+        }
+        code = parsed.code;
+      }
+    }
+
+    if (timedOut) {
+      throw new OAuthError('OpenAI browser login timed out after 900s.');
+    }
+    throwIfBrowserLoginAborted(options.signal);
+    if (code === undefined || code.length === 0) {
+      throw new OAuthError('OpenAI browser login did not return an authorization code.');
+    }
+    return await exchangeOpenAICodexAuthorizationCode(
+      code,
+      verifier,
+      OPENAI_CODEX_BROWSER_REDIRECT_URL,
+      options.fetchImpl ?? fetch,
+      options.signal,
+    );
+  } finally {
+    clearTimeout(timeout);
+    options.signal?.removeEventListener('abort', cancelWait);
+    manualAbort.abort();
+    await callbackServer.close();
+  }
+}
+
 export async function requestOpenAICodexDeviceAuthorization(
   _config: OAuthFlowConfig,
   fetchImpl: typeof fetch = fetch,
@@ -262,6 +391,7 @@ export async function pollOpenAICodexDeviceToken(
       token: await exchangeOpenAICodexAuthorizationCode(
         authorizationCode,
         codeVerifier,
+        OPENAI_CODEX_DEVICE_REDIRECT_URL,
         fetchImpl,
       ),
     };
@@ -336,7 +466,9 @@ function parseDeviceState(deviceCode: string): DeviceState {
 async function exchangeOpenAICodexAuthorizationCode(
   authorizationCode: string,
   codeVerifier: string,
+  redirectUri: string,
   fetchImpl: typeof fetch,
+  signal?: AbortSignal,
 ): Promise<TokenInfo> {
   return requestOpenAICodexToken(
     fetchImpl,
@@ -345,9 +477,10 @@ async function exchangeOpenAICodexAuthorizationCode(
       client_id: OPENAI_CODEX_CLIENT_ID,
       code: authorizationCode,
       code_verifier: codeVerifier,
-      redirect_uri: OPENAI_CODEX_DEVICE_REDIRECT_URL,
+      redirect_uri: redirectUri,
     }),
     'exchange',
+    signal,
   );
 }
 
@@ -355,11 +488,13 @@ async function requestOpenAICodexToken(
   fetchImpl: typeof fetch,
   body: URLSearchParams,
   operation: 'exchange' | 'refresh',
+  signal?: AbortSignal,
 ): Promise<TokenInfo> {
   const response = await fetchJson(fetchImpl, `${OPENAI_CODEX_OAUTH_HOST}/oauth/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
+    signal,
   });
   if (!response.ok) {
     const message = `OpenAI Codex token ${operation} failed (HTTP ${response.status})${
@@ -438,4 +573,159 @@ function readOpenAIErrorCode(data: Record<string, unknown>): string | undefined 
   if (typeof error === 'string') return error;
   if (isRecord(error) && typeof error['code'] === 'string') return error['code'];
   return undefined;
+}
+
+function createOpenAICodexAuthorizationUrl(challenge: string, state: string): string {
+  const url = new URL(`${OPENAI_CODEX_OAUTH_HOST}/oauth/authorize`);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('client_id', OPENAI_CODEX_CLIENT_ID);
+  url.searchParams.set('redirect_uri', OPENAI_CODEX_BROWSER_REDIRECT_URL);
+  url.searchParams.set('scope', OPENAI_CODEX_BROWSER_SCOPE);
+  url.searchParams.set('code_challenge', challenge);
+  url.searchParams.set('code_challenge_method', 'S256');
+  url.searchParams.set('state', state);
+  url.searchParams.set('id_token_add_organizations', 'true');
+  url.searchParams.set('codex_cli_simplified_flow', 'true');
+  url.searchParams.set('originator', 'kimi-code');
+  return url.toString();
+}
+
+function parseOpenAICodexAuthorizationInput(input: string): {
+  readonly code?: string;
+  readonly state?: string;
+} {
+  const value = input.trim();
+  if (value.length === 0) return {};
+
+  try {
+    const url = new URL(value);
+    return {
+      code: url.searchParams.get('code') ?? undefined,
+      state: url.searchParams.get('state') ?? undefined,
+    };
+  } catch {
+    // Accept the compact and query-string forms used by CLI OAuth clients.
+  }
+
+  if (value.includes('#')) {
+    const [code, state] = value.split('#', 2);
+    return { code, state };
+  }
+  if (value.includes('code=')) {
+    const params = new URLSearchParams(value);
+    return {
+      code: params.get('code') ?? undefined,
+      state: params.get('state') ?? undefined,
+    };
+  }
+  return { code: value };
+}
+
+type OpenAICodexCallbackResult =
+  | { readonly kind: 'code'; readonly code: string }
+  | { readonly kind: 'error'; readonly message: string };
+
+interface OpenAICodexCallbackServer {
+  readonly listening: boolean;
+  readonly bindError?: Error;
+  readonly waitForCode: () => Promise<OpenAICodexCallbackResult | null>;
+  readonly cancelWait: () => void;
+  readonly close: () => Promise<void>;
+}
+
+function startOpenAICodexCallbackServer(state: string): Promise<OpenAICodexCallbackServer> {
+  let settleWait: ((result: OpenAICodexCallbackResult | null) => void) | undefined;
+  const waitPromise = new Promise<OpenAICodexCallbackResult | null>((resolve) => {
+    let settled = false;
+    settleWait = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+  });
+  const server = createServer((request, response) => {
+    const respond = (status: number, title: string, message: string): void => {
+      response.statusCode = status;
+      response.setHeader('Cache-Control', 'no-store');
+      response.setHeader('Content-Type', 'text/html; charset=utf-8');
+      response.end(openAICodexCallbackHtml(title, message));
+    };
+    try {
+      const url = new URL(request.url ?? '', 'http://localhost');
+      if (request.method !== 'GET' || url.pathname !== '/auth/callback') {
+        respond(404, 'OpenAI login failed', 'Callback route not found.');
+        return;
+      }
+      if (url.searchParams.get('state') !== state) {
+        respond(400, 'OpenAI login failed', 'OAuth state mismatch. Return to the terminal.');
+        return;
+      }
+      const oauthError = url.searchParams.get('error');
+      if (oauthError !== null) {
+        respond(
+          400,
+          'OpenAI login failed',
+          'Authorization was not completed. Return to the terminal.',
+        );
+        settleWait?.({
+          kind: 'error',
+          message: `OpenAI OAuth authorization failed: ${oauthError}`,
+        });
+        return;
+      }
+      const code = url.searchParams.get('code');
+      if (code === null || code.length === 0) {
+        respond(400, 'OpenAI login failed', 'Missing authorization code. Return to the terminal.');
+        return;
+      }
+      respond(
+        200,
+        'OpenAI login complete',
+        'Authentication completed. You can close this window.',
+      );
+      settleWait?.({ kind: 'code', code });
+    } catch {
+      respond(500, 'OpenAI login failed', 'Could not process the OAuth callback.');
+    }
+  });
+
+  return new Promise((resolve) => {
+    const finish = (listening: boolean, bindError?: Error): void => {
+      resolve({
+        listening,
+        bindError,
+        waitForCode: () => waitPromise,
+        cancelWait: () => settleWait?.(null),
+        close: async () => {
+          if (!server.listening) return;
+          await new Promise<void>((closeResolve) => {
+            server.close(() => {
+              closeResolve();
+            });
+          });
+        },
+      });
+    };
+    server
+      .listen(1455, process.env['KIMI_CODE_OAUTH_CALLBACK_HOST'] ?? '127.0.0.1', () => {
+        finish(true);
+      })
+      .once('error', (error: Error) => {
+        settleWait?.(null);
+        finish(false, error);
+      });
+  });
+}
+
+function openAICodexCallbackHtml(title: string, message: string): string {
+  return [
+    '<!doctype html><html><head><meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width">',
+    `<title>${title}</title></head><body><main><h1>${title}</h1>`,
+    `<p>${message}</p></main></body></html>`,
+  ].join('');
+}
+
+function throwIfBrowserLoginAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted === true) throw new OAuthError('Login aborted by caller');
 }

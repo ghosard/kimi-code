@@ -158,10 +158,11 @@ The Kimi Code managed service and OpenAI Codex subscription provider use OAuth r
 
 ```sh
 kimi login                 # Kimi Code
-kimi login openai-codex    # ChatGPT subscription / OpenAI Codex
+kimi login openai-codex    # ChatGPT subscription / OpenAI Codex, browser OAuth
+kimi login openai-codex --method device-code  # SSH/headless
 ```
 
-The OpenAI Codex flow uses a device code and a ChatGPT subscription that includes Codex; it does not consume an OpenAI API key. Login writes the provider and model aliases to `config.toml`, while access and refresh tokens stay in the credential store.
+The OpenAI Codex browser flow follows the same PKCE pattern as Pi and receives the redirect on `http://localhost:1455/auth/callback`. The device-code method remains available when that callback cannot reach the CLI, such as over SSH. Both methods use a ChatGPT subscription that includes Codex and do not consume an OpenAI API key. Login writes the provider and model aliases to `config.toml`, while access and refresh tokens stay in the credential store.
 
 For prompt caching, Kimi Code reuses the session id as the Responses API cache key and as the Codex cache-affinity headers. This is automatic and requires no user configuration.
 

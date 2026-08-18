@@ -9,7 +9,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { BannerProvider } from '#/tui/banner/banner-provider';
 import { readBannerDisplayState } from '#/tui/banner/state';
 import { handleLoginCommand, handleLogoutCommand } from '#/tui/commands/auth';
-import { promptPlatformSelection, promptLogoutProviderSelection } from '#/tui/commands/prompts';
+import {
+  promptLogoutProviderSelection,
+  promptOpenAICodexLoginMethod,
+  promptPlatformSelection,
+} from '#/tui/commands/prompts';
 import { BannerComponent } from '#/tui/components/chrome/banner';
 import { WelcomeComponent } from '#/tui/components/chrome/welcome';
 import { KimiTUI, type KimiTUIStartupInput, type TUIState } from '#/tui/kimi-tui';
@@ -26,7 +30,12 @@ import {
 
 vi.mock('#/tui/commands/prompts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('#/tui/commands/prompts')>();
-  return { ...actual, promptPlatformSelection: vi.fn(), promptLogoutProviderSelection: vi.fn() };
+  return {
+    ...actual,
+    promptPlatformSelection: vi.fn(),
+    promptOpenAICodexLoginMethod: vi.fn(),
+    promptLogoutProviderSelection: vi.fn(),
+  };
 });
 vi.mock('#/utils/clipboard/clipboard-text', () => ({
   copyTextToClipboard: vi.fn(async () => {}),
@@ -1857,6 +1866,34 @@ describe('KimiTUI startup', () => {
       method: 'oauth',
       already_logged_in: true,
     });
+  });
+
+  it('uses the selected OpenAI Codex browser login method', async () => {
+    const session = makeSession();
+    const harness = makeHarness(session, {
+      auth: {
+        status: vi.fn(async () => ({ providers: [] })),
+        login: vi.fn(async () => {}),
+        logout: vi.fn(),
+        getManagedUsage: vi.fn(),
+      },
+    });
+    const driver = makeDriver(harness, makeStartupInput());
+
+    await expect(driver.init()).resolves.toBe(false);
+    vi.mocked(promptPlatformSelection).mockResolvedValue('openai-codex');
+    vi.mocked(promptOpenAICodexLoginMethod).mockResolvedValue('browser');
+
+    await handleLoginCommand(driver as any);
+
+    expect(harness.auth.login).toHaveBeenCalledWith(
+      'openai-codex',
+      expect.objectContaining({
+        loginMethod: 'browser',
+        signal: expect.any(AbortSignal),
+        onAuthorizationUrl: expect.any(Function),
+      }),
+    );
   });
 
   it('logs login failures with session context', async () => {

@@ -6,6 +6,7 @@ import {
   applyManagedKimiCodeConfig,
   KIMI_CODE_PROVIDER_NAME,
   KimiOAuthToolkit,
+  OPENAI_CODEX_PROVIDER_NAME,
   resolveKimiCodeOAuthKey,
   resolveKimiTokenStorageName,
   type ManagedKimiConfigShape,
@@ -116,6 +117,40 @@ describe('KimiOAuthToolkit', () => {
     });
 
     await expect(toolkit.tokenProvider().getAccessToken()).resolves.toBe('access-1');
+  });
+
+  it('defaults OpenAI Codex to browser OAuth and persists the token', async () => {
+    const storage = new MemoryTokenStorage();
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        access_token: 'codex-access',
+        refresh_token: 'codex-refresh',
+        expires_in: 3600,
+        token_type: 'Bearer',
+      }),
+    );
+    const onAuthorizationUrl = vi.fn();
+    const toolkit = new KimiOAuthToolkit({
+      homeDir: join('/tmp', 'kimi-oauth-toolkit-test'),
+      storage,
+      fetchImpl,
+    });
+
+    await expect(
+      toolkit.login(OPENAI_CODEX_PROVIDER_NAME, {
+        onAuthorizationUrl,
+        onManualCode: async ({ authorizationUrl, redirectUri }) => {
+          const state = new URL(authorizationUrl).searchParams.get('state');
+          return `${redirectUri}?code=codex-code&state=${state}`;
+        },
+      }),
+    ).resolves.toMatchObject({ providerName: OPENAI_CODEX_PROVIDER_NAME, ok: true });
+
+    expect(onAuthorizationUrl).toHaveBeenCalledTimes(1);
+    expect(storage.tokens.get(OPENAI_CODEX_PROVIDER_NAME)).toMatchObject({
+      accessToken: 'codex-access',
+      refreshToken: 'codex-refresh',
+    });
   });
 
   it('reports status and exposes a bearer token provider', async () => {

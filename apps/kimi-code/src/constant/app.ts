@@ -1,5 +1,7 @@
 import { ErrorCodes } from '@moonshot-ai/kimi-code-sdk';
 
+declare const __KIMI_CODE_NPM_PACKAGE_NAME__: string | undefined;
+
 export const PRODUCT_NAME = 'Kimi Code';
 export const CLI_COMMAND_NAME = 'kimi';
 export const PROCESS_NAME = 'kimi-code';
@@ -39,7 +41,10 @@ export const HEADLESS_FORCE_EXIT_GRACE_MS = 2000;
 export const HEADLESS_STDIO_DRAIN_TIMEOUT_MS = 10000;
 
 // Published npm package name; this can differ from the executable command.
-export const NPM_PACKAGE_NAME = '@moonshot-ai/kimi-code';
+export const NPM_PACKAGE_NAME =
+  typeof __KIMI_CODE_NPM_PACKAGE_NAME__ === 'string'
+    ? __KIMI_CODE_NPM_PACKAGE_NAME__
+    : '@moonshot-ai/kimi-code';
 
 // App-owned data paths. SDK/core runtime config is intentionally not routed here.
 export const KIMI_CODE_HOME_ENV = 'KIMI_CODE_HOME';

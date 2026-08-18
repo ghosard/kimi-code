@@ -1,5 +1,5 @@
 /**
- * `kimi login` — drive the OAuth device-code flow non-interactively.
+ * `kimi login` — drive an OAuth login flow outside the TUI.
  * The `authMethods.terminal-auth.args=['login']` (legacy `_meta` path)
  * advertised by the ACP server points clients at this entry point. The
  * first-class ACP `args=['--login']` path enters the same flow via
@@ -17,9 +17,10 @@ import { runLoginFlow } from './login-flow';
 export function registerLoginCommand(parent: Command): void {
   parent
     .command('login')
-    .description('Authenticate with Kimi Code or OpenAI Codex via a device-code flow.')
+    .description('Authenticate with Kimi Code or OpenAI Codex.')
     .argument('[provider]', 'kimi-code or openai-codex', 'kimi-code')
-    .action(async (provider: string) => {
+    .option('--method <method>', 'OpenAI Codex login method: browser or device-code')
+    .action(async (provider: string, options: { readonly method?: string }) => {
       const providerName =
         provider === 'kimi-code'
           ? KIMI_CODE_PROVIDER_NAME
@@ -29,6 +30,13 @@ export function registerLoginCommand(parent: Command): void {
       if (providerName === undefined) {
         throw new Error(`Unknown OAuth provider "${provider}".`);
       }
-      await runLoginFlow(providerName);
+      const method = options.method;
+      if (method !== undefined && method !== 'browser' && method !== 'device-code') {
+        throw new Error(`Unknown OpenAI Codex login method "${method}".`);
+      }
+      if (providerName !== OPENAI_CODEX_PROVIDER_NAME && method !== undefined) {
+        throw new Error('--method is only supported for openai-codex.');
+      }
+      await runLoginFlow(providerName, method);
     });
 }

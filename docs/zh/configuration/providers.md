@@ -158,10 +158,11 @@ Kimi Code 托管服务和 OpenAI Codex 订阅供应商使用 OAuth，而不是�
 
 ```sh
 kimi login                 # Kimi Code
-kimi login openai-codex    # ChatGPT 订阅 / OpenAI Codex
+kimi login openai-codex    # ChatGPT 订阅 / OpenAI Codex，浏览器 OAuth
+kimi login openai-codex --method device-code  # SSH/无图形界面
 ```
 
-OpenAI Codex 使用设备码和包含 Codex 权益的 ChatGPT 订阅登录，不消耗 OpenAI API key。登录后，供应商和模型别名会写进 `config.toml`，access token 和 refresh token 则保存在凭证目录中。
+OpenAI Codex 浏览器登录采用与 Pi 相同的 PKCE 模式，并在 `http://localhost:1455/auth/callback` 接收回调。SSH 等回调无法到达 CLI 的环境仍可选择 device-code。两种方式都使用包含 Codex 权益的 ChatGPT 订阅，不消耗 OpenAI API key。登录后，供应商和模型别名会写进 `config.toml`，access token 和 refresh token 则保存在凭证目录中。
 
 提示缓存无需额外配置：Kimi Code 会自动把稳定的会话 ID 同时用于 Responses API 的缓存 key 和 Codex 缓存亲和性请求头。
 

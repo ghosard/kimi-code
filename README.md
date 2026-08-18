@@ -7,19 +7,31 @@
 
 This fork adds ChatGPT subscription login and OpenAI Codex models to Kimi Code CLI.
 
-- Run `kimi login openai-codex`, or choose **OpenAI Codex** from `/login`, to authenticate with the browser-based device-code flow. No API key or local callback port is required.
+Install the fork from npm:
+
+```sh
+npm install -g @ghosard/kimi-coded
+```
+
+- Run `kimi login openai-codex`, or choose **OpenAI Codex** from `/login`, to authenticate with browser OAuth. The default flow uses PKCE and a temporary callback listener on `localhost:1455`; use `--method device-code` for SSH or headless environments. No OpenAI API key is required.
 - The access and refresh tokens are managed by Kimi Code's existing OAuth storage. Both agent engines resolve the token dynamically and send Codex requests to `https://chatgpt.com/backend-api/codex`.
 - Codex requests carry the ChatGPT account header and stable session affinity (`prompt_cache_key`, `session-id`, and `x-client-request-id`) for better prompt-cache reuse. Parameters unsupported by the subscription endpoint are filtered out.
 - The provider and model snapshot lives in [`packages/oauth/src/openai-codex-models.json`](packages/oauth/src/openai-codex-models.json). Future model updates only require editing this JSON file and logging in again to refresh the generated local configuration.
 
-The device authorization flow, Codex request behavior, and model-maintenance approach are adapted from the MIT-licensed [`earendil-works/pi`](https://github.com/earendil-works/pi) project. The implementation is integrated into Kimi Code's own provider, OAuth, SDK, CLI, and TUI boundaries rather than embedding Pi as a dependency.
+The browser OAuth flow, device authorization fallback, Codex request behavior, and model-maintenance approach are adapted from the MIT-licensed [`earendil-works/pi`](https://github.com/earendil-works/pi) project. The implementation is integrated into Kimi Code's own provider, OAuth, SDK, CLI, and TUI boundaries rather than embedding Pi as a dependency.
 
 From a source checkout:
 
 ```sh
 npm --prefix apps/kimi-code run dev -- login openai-codex
+# SSH/headless:
+npm --prefix apps/kimi-code run dev -- login openai-codex --method device-code
 npm --prefix apps/kimi-code run dev
 ```
+
+The fork is published by [`.github/workflows/publish-npm.yml`](.github/workflows/publish-npm.yml)
+with npm Trusted Publishing. Run the workflow with a semantic version, or push a tag such as
+`npm-v0.36.2`; no long-lived npm token is stored in GitHub.
 
 ![Demo of using Kimi Code](./docs/media/intro.gif)
 

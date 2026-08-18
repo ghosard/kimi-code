@@ -246,7 +246,8 @@ async function isExecutableFile(filePath) {
 //   - pnpm POSIX shims (literal `/bin/sh` scripts, not symlinks; pnpm
 //     does not symlink into the package root the way npm/yarn classic
 //     do on POSIX)
-const PACKAGE_NAME_MARKERS = ['@moonshot-ai/kimi-code', '@moonshot-ai\\kimi-code'];
+const npmPackageName = process.env['npm_package_name'] ?? '@ghosard/kimi-coded';
+const PACKAGE_NAME_MARKERS = [npmPackageName, npmPackageName.replace('/', '\\')];
 
 async function shimReferencesOwnPackage(shimPath) {
   try {
@@ -454,4 +455,3 @@ function unionPaths(...paths) {
   }
   return out.join(delimiter);
 }
-

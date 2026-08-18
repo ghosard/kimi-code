@@ -2,8 +2,8 @@
  * `kimi login`
  *
  * Verifies that the login sub-command is registered on the program and
- * that the action drives `harness.auth.login`, prints the device code to
- * stderr, and exits with the right code on success / failure.
+ * that the action drives `harness.auth.login`, selects the requested OAuth
+ * method, prints its instructions, and exits with the right code.
  */
 
 import { Command } from 'commander';
@@ -78,6 +78,7 @@ describe('kimi login', () => {
     expect(mockLogin).toHaveBeenCalledWith(
       'managed:kimi-code',
       expect.objectContaining({
+        loginMethod: 'device-code',
         signal: expect.any(AbortSignal),
         onDeviceCode: expect.any(Function),
       }),
@@ -85,7 +86,7 @@ describe('kimi login', () => {
     expect(exitSpy).toHaveBeenCalledWith(0);
   });
 
-  it('accepts openai-codex as the subscription provider', async () => {
+  it('defaults openai-codex to browser login', async () => {
     mockLogin.mockResolvedValue({ providerName: 'openai-codex', ok: true });
 
     const program = new Command('kimi').exitOverride();
@@ -98,11 +99,69 @@ describe('kimi login', () => {
     expect(mockLogin).toHaveBeenCalledWith(
       'openai-codex',
       expect.objectContaining({
+        loginMethod: 'browser',
         signal: expect.any(AbortSignal),
+        onAuthorizationUrl: expect.any(Function),
         onDeviceCode: expect.any(Function),
       }),
     );
     expect(exitSpy).toHaveBeenCalledWith(0);
+  });
+
+  it('allows device-code login for OpenAI Codex headless sessions', async () => {
+    mockLogin.mockResolvedValue({ providerName: 'openai-codex', ok: true });
+
+    const program = new Command('kimi').exitOverride();
+    registerLoginCommand(program);
+
+    await expect(
+      program.parseAsync([
+        'node',
+        'kimi',
+        'login',
+        'openai-codex',
+        '--method',
+        'device-code',
+      ]),
+    ).rejects.toThrow(ExitCalled);
+
+    expect(mockLogin).toHaveBeenCalledWith(
+      'openai-codex',
+      expect.objectContaining({ loginMethod: 'device-code' }),
+    );
+  });
+
+  it('prints and opens the OpenAI browser authorization URL', async () => {
+    mockLogin.mockImplementation(
+      async (
+        _providerName: string | undefined,
+        options: {
+          onAuthorizationUrl?: (data: {
+            authorizationUrl: string;
+            redirectUri: string;
+          }) => void | Promise<void>;
+        },
+      ) => {
+        await options.onAuthorizationUrl?.({
+          authorizationUrl: 'https://auth.example.test/authorize',
+          redirectUri: 'http://localhost:1455/auth/callback',
+        });
+        return { providerName: 'openai-codex', ok: true };
+      },
+    );
+
+    const program = new Command('kimi').exitOverride();
+    registerLoginCommand(program);
+
+    await expect(
+      program.parseAsync(['node', 'kimi', 'login', 'openai-codex']),
+    ).rejects.toThrow(ExitCalled);
+
+    const writtenChunks = stderrSpy.mock.calls.map((call: unknown[]) => String(call[0]));
+    expect(
+      writtenChunks.some((chunk: string) => chunk.includes('https://auth.example.test/authorize')),
+    ).toBe(true);
+    expect(openUrl).toHaveBeenCalledWith('https://auth.example.test/authorize');
   });
 
   it('prints device code prompt to stderr', async () => {

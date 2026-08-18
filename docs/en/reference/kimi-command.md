@@ -137,13 +137,15 @@ In `stream-json` mode, regular replies produce an Assistant message; when the mo
 
 ### `kimi login`
 
-Log in to Kimi Code OAuth via the RFC 8628 device-code flow, without entering the TUI. The command issues a device authorization request, prints the verification URL and user code to stderr, then polls until the browser-side authorization is complete. The generated token is written to the same local location as TUI `/login` and is loaded automatically the next time `kimi` starts.
+Log in without entering the TUI. Kimi Code OAuth uses the RFC 8628 device-code flow. OpenAI Codex uses browser OAuth with PKCE by default and listens temporarily on `localhost:1455`; for SSH or headless environments, select its device-code flow explicitly. Generated tokens are written to the same credential location as TUI `/login` and are loaded automatically the next time `kimi` starts.
 
 ```sh
 kimi login
+kimi login openai-codex
+kimi login openai-codex --method device-code
 ```
 
-This subcommand has no flags. Press `Ctrl-C` at any time during polling to cancel; the exit code is `1` on cancellation or failure, and `0` on success.
+`--method <browser|device-code>` is available for `openai-codex`; `browser` is the default. Press `Ctrl-C` at any time to cancel; the exit code is `1` on cancellation or failure, and `0` on success.
 
 ### `kimi acp`
 

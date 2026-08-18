@@ -6,6 +6,8 @@ import { rawTextPlugin } from '../../build/raw-text-plugin.mjs';
 import { BUILT_IN_CATALOG_DEFINE, builtInCatalogDefine } from './scripts/built-in-catalog.mjs';
 
 const appRoot = import.meta.dirname;
+const npmPackageName =
+  process.env['KIMI_CODE_NPM_PACKAGE_NAME'] ?? '@moonshot-ai/kimi-code';
 
 export default defineConfig({
   entry: ['./src/main.ts'],
@@ -29,6 +31,7 @@ export default defineConfig({
   },
   define: {
     [BUILT_IN_CATALOG_DEFINE]: builtInCatalogDefine(),
+    __KIMI_CODE_NPM_PACKAGE_NAME__: JSON.stringify(npmPackageName),
   },
   deps: {
     onlyBundle: false,

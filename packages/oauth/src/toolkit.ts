@@ -43,6 +43,7 @@ import {
 } from './managed-usage';
 import { OAuthManager, type LoginOptions, type OAuthManagerOptions } from './oauth-manager';
 import {
+  loginOpenAICodexBrowser,
   openAICodexRequestAuth,
   OPENAI_CODEX_FLOW_CONFIG,
   OPENAI_CODEX_OAUTH_HOST,
@@ -51,6 +52,8 @@ import {
   pollOpenAICodexDeviceToken,
   refreshOpenAICodexToken,
   requestOpenAICodexDeviceAuthorization,
+  type OpenAICodexBrowserAuthorization,
+  type OpenAICodexLoginMethod,
 } from './openai-codex';
 import { FileTokenStorage, type TokenStorage } from './storage';
 import type { OAuthFlowConfig } from './types';
@@ -98,6 +101,13 @@ export interface KimiOAuthLoginOptions extends LoginOptions {
   readonly baseUrl?: string | undefined;
   readonly oauthRef?: KimiOAuthTokenRef | undefined;
   readonly oauthHost?: string | undefined;
+  readonly loginMethod?: OpenAICodexLoginMethod;
+  readonly onAuthorizationUrl?: (
+    authorization: OpenAICodexBrowserAuthorization,
+  ) => Promise<void> | void;
+  readonly onManualCode?: (
+    authorization: OpenAICodexBrowserAuthorization & { readonly signal: AbortSignal },
+  ) => Promise<string | undefined>;
 }
 
 export interface KimiOAuthTokenRef {
@@ -185,10 +195,25 @@ export class KimiOAuthToolkit<TConfig = unknown> {
     const oauthKey =
       options.oauthRef?.key ?? this.defaultOAuthKey(name, options.baseUrl, oauthHost);
     const manager = this.managerFor(name, oauthKey, oauthHost);
+    const isOpenAICodex = name === OPENAI_CODEX_PROVIDER_NAME;
+    const loginMethod = options.loginMethod ?? (isOpenAICodex ? 'browser' : 'device-code');
+    if (!isOpenAICodex && loginMethod !== 'device-code') {
+      throw new Error(`Browser OAuth login is only supported for ${OPENAI_CODEX_PROVIDER_NAME}.`);
+    }
     const hadToken = await manager.hasToken();
-    let usedDeviceLogin = false;
-    const loginWithDevice = async (): Promise<string> => {
-      usedDeviceLogin = true;
+    let usedInteractiveLogin = false;
+    const loginInteractively = async (): Promise<string> => {
+      usedInteractiveLogin = true;
+      if (loginMethod === 'browser') {
+        const token = await loginOpenAICodexBrowser({
+          signal: options.signal,
+          fetchImpl: this.fetchImpl,
+          onAuthorizationUrl: options.onAuthorizationUrl,
+          onManualCode: options.onManualCode,
+        });
+        await manager.saveToken(token);
+        return token.accessToken;
+      }
       return (
         await manager.login({
           signal: options.signal,
@@ -202,10 +227,10 @@ export class KimiOAuthToolkit<TConfig = unknown> {
         accessToken = await manager.ensureFresh();
       } catch (error) {
         if (!(error instanceof OAuthUnauthorizedError)) throw error;
-        accessToken = await loginWithDevice();
+        accessToken = await loginInteractively();
       }
     } else {
-      accessToken = await loginWithDevice();
+      accessToken = await loginInteractively();
     }
 
     const shouldProvision = options.provisionConfig ?? this.configAdapter !== undefined;
@@ -226,7 +251,7 @@ export class KimiOAuthToolkit<TConfig = unknown> {
       try {
         provision = await provisionWithToken(accessToken);
       } catch (error) {
-        if (!(error instanceof OAuthUnauthorizedError) || !hadToken || usedDeviceLogin) {
+        if (!(error instanceof OAuthUnauthorizedError) || !hadToken || usedInteractiveLogin) {
           throw error;
         }
         let retryToken: string;
@@ -234,15 +259,15 @@ export class KimiOAuthToolkit<TConfig = unknown> {
           retryToken = await manager.ensureFresh({ force: true });
         } catch (refreshError) {
           if (!(refreshError instanceof OAuthUnauthorizedError)) throw refreshError;
-          retryToken = await loginWithDevice();
+          retryToken = await loginInteractively();
         }
         try {
           provision = await provisionWithToken(retryToken);
         } catch (retryError) {
-          if (!(retryError instanceof OAuthUnauthorizedError) || usedDeviceLogin) {
+          if (!(retryError instanceof OAuthUnauthorizedError) || usedInteractiveLogin) {
             throw retryError;
           }
-          provision = await provisionWithToken(await loginWithDevice());
+          provision = await provisionWithToken(await loginInteractively());
         }
       }
     }

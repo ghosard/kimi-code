@@ -1,8 +1,13 @@
-# @moonshot-ai/kimi-code
+# @ghosard/kimi-coded
 
-> The Starting Point for Next-Gen Agents
+> An unofficial Kimi Code CLI fork with ChatGPT subscription login and OpenAI Codex models.
 
-[![npm](https://img.shields.io/npm/v/@moonshot-ai/kimi-code)](https://www.npmjs.com/package/@moonshot-ai/kimi-code) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)  [![Docs](https://img.shields.io/badge/docs-online-blue)](https://moonshotai.github.io/kimi-code/en/)
+[![npm](https://img.shields.io/npm/v/@ghosard/kimi-coded)](https://www.npmjs.com/package/@ghosard/kimi-coded) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)  [![Docs](https://img.shields.io/badge/docs-online-blue)](https://moonshotai.github.io/kimi-code/en/)
+
+This fork adds browser OAuth and device-code login for ChatGPT subscriptions. The OAuth and
+provider behavior is adapted from the MIT-licensed
+[Pi](https://github.com/earendil-works/pi) project; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## What is Kimi Code CLI
 
@@ -10,41 +15,19 @@ Kimi Code CLI is an AI coding agent that runs in your terminal. It can read and 
 
 ## Install
 
-The recommended install path is the official script. It does not require Node.js to be installed first.
-
-- **macOS / Linux**:
+Use Node.js 22.19.0 or later:
 
 ```sh
-curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash
-```
-
-- **Windows (PowerShell)**:
-
-```powershell
-irm https://code.kimi.com/kimi-code/install.ps1 | iex
-```
-
-> On Windows, install [Git for Windows](https://gitforwindows.org/) before first launch because Kimi Code CLI uses the bundled Git Bash as its shell environment. If Git Bash is installed in a custom location, set `KIMI_SHELL_PATH` to the absolute path of `bash.exe`.
-
-Then run it with a new Terminal session:
-
-```sh
-kimi --version
-```
-
-### Alternative: npm
-
-If you prefer npm, use Node.js 22.19.0 or later:
-
-```sh
-npm install -g @moonshot-ai/kimi-code
+npm install -g @ghosard/kimi-coded
 ```
 
 Or with pnpm:
 
 ```sh
-pnpm add -g @moonshot-ai/kimi-code
+pnpm add -g @ghosard/kimi-coded
 ```
+
+Then run `kimi --version` in a new terminal session.
 
 For upgrade and uninstall instructions, see the [Getting Started guide](https://moonshotai.github.io/kimi-code/en/guides/getting-started).
 
@@ -81,8 +64,9 @@ Take a look at this project and explain the main directories.
 
 ## Repository & Issues
 
-- Source: https://github.com/MoonshotAI/kimi-code
-- Issues: https://github.com/MoonshotAI/kimi-code/issues
+- Fork source: https://github.com/ghosard/kimi-code
+- Fork issues: https://github.com/ghosard/kimi-code/issues
+- Upstream: https://github.com/MoonshotAI/kimi-code
 - Security: see SECURITY.md in the main repository
 
 ## License

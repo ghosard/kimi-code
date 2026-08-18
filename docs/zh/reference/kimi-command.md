@@ -137,13 +137,15 @@ kimi -p "List changed files" --output-format stream-json
 
 ### `kimi login`
 
-通过 RFC 8628 device-code 流程登录 Kimi Code OAuth，无需进入 TUI。命令会发起一次 device authorization 请求，将验证地址和用户码打印到 stderr，然后轮询直到浏览器侧完成授权。生成的 token 写入与 TUI `/login` 相同的本地位置，下次启动 `kimi` 时会自动加载。
+无需进入 TUI 即可登录。Kimi Code OAuth 使用 RFC 8628 device-code 流程；OpenAI Codex 默认使用带 PKCE 的浏览器 OAuth，并临时监听 `localhost:1455`。SSH 或无图形界面环境可显式选择 device-code。生成的 token 写入与 TUI `/login` 相同的凭证位置，下次启动 `kimi` 时会自动加载。
 
 ```sh
 kimi login
+kimi login openai-codex
+kimi login openai-codex --method device-code
 ```
 
-该子命令没有任何 flag。在轮询期间随时按 `Ctrl-C` 可取消登录；取消或失败时退出码为 `1`，成功为 `0`。
+`openai-codex` 支持 `--method <browser|device-code>`，默认是 `browser`。登录期间随时按 `Ctrl-C` 可取消；取消或失败时退出码为 `1`，成功为 `0`。
 
 ### `kimi acp`
 

@@ -9,6 +9,7 @@ import {
 import { capabilitiesForModel } from '@moonshot-ai/kimi-code-oauth';
 import type {
   ManagedKimiCodeModelInfo,
+  OpenAICodexLoginMethod,
   OpenPlatformDefinition,
 } from '@moonshot-ai/kimi-code-oauth';
 
@@ -32,6 +33,37 @@ export function promptPlatformSelection(host: SlashCommandHost): Promise<string 
       },
     });
     host.mountEditorReplacement(selector);
+  });
+}
+
+export function promptOpenAICodexLoginMethod(
+  host: SlashCommandHost,
+): Promise<OpenAICodexLoginMethod | undefined> {
+  return new Promise((resolve) => {
+    const picker = new ChoicePickerComponent({
+      title: 'Select OpenAI Codex login method',
+      options: [
+        {
+          value: 'browser',
+          label: 'Browser login',
+          description: 'Recommended on this machine; listens on localhost:1455',
+        },
+        {
+          value: 'device-code',
+          label: 'Device code login',
+          description: 'Use for SSH and headless environments',
+        },
+      ],
+      onSelect: (value) => {
+        host.restoreEditor();
+        resolve(value as OpenAICodexLoginMethod);
+      },
+      onCancel: () => {
+        host.restoreEditor();
+        resolve(undefined);
+      },
+    });
+    host.mountEditorReplacement(picker);
   });
 }
 

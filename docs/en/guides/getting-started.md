@@ -100,15 +100,16 @@ On first launch you need to configure an API source. In the interactive UI, ente
 /login
 ```
 
-`/login` opens a platform selector supporting two options:
+`/login` opens a platform selector with these built-in options:
 
 - **Kimi Code (OAuth)** — device-code flow; open the link on any device, sign in, and enter the code to authorize
+- **OpenAI Codex (ChatGPT OAuth)** — browser OAuth by default, with device-code login available for SSH/headless use
 - **Kimi Platform API key** — enter an API key from `platform.kimi.com` or `platform.kimi.ai`
 
 To sign out, enter `/logout` to clear the current credentials.
 
 ::: tip Using other AI providers
-If you want to connect Anthropic, OpenAI, Google, or other providers, edit `~/.kimi-code/config.toml` directly to configure the API key. See [Providers and models](../configuration/providers.md) for details. For the full reference of all config options, see [Configuration files](../configuration/config-files.md), [Environment variables](../configuration/env-vars.md), and [Configuration overrides](../configuration/overrides.md).
+If you want to connect Anthropic, Google, OpenAI API-key endpoints, or other providers, edit `~/.kimi-code/config.toml` directly to configure the API key. See [Providers and models](../configuration/providers.md) for details. For the full reference of all config options, see [Configuration files](../configuration/config-files.md), [Environment variables](../configuration/env-vars.md), and [Configuration overrides](../configuration/overrides.md).
 :::
 
 ## Your first conversation
