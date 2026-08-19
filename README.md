@@ -13,7 +13,8 @@ Install the fork from npm:
 npm install -g @ghosard/kimi-coded
 ```
 
-- Run `kimi login openai-codex`, or choose **OpenAI Codex** from `/login`, to authenticate with browser OAuth. The default flow uses PKCE and a temporary callback listener on `localhost:1455`; use `--method device-code` for SSH or headless environments. No OpenAI API key is required.
+- The fork installs the `kimi-coded` command only, so it can coexist with the upstream `kimi` command.
+- Run `kimi-coded login openai-codex`, or choose **OpenAI Codex** from `/login`, to authenticate with browser OAuth. The default flow uses PKCE and a temporary callback listener on `localhost:1455`; use `--method device-code` for SSH or headless environments. No OpenAI API key is required.
 - The access and refresh tokens are managed by Kimi Code's existing OAuth storage. Both agent engines resolve the token dynamically and send Codex requests to `https://chatgpt.com/backend-api/codex`.
 - Codex requests carry the ChatGPT account header and stable session affinity (`prompt_cache_key`, `session-id`, and `x-client-request-id`) for better prompt-cache reuse. Parameters unsupported by the subscription endpoint are filtered out.
 - The provider and model snapshot lives in [`packages/oauth/src/openai-codex-models.json`](packages/oauth/src/openai-codex-models.json). Future model updates only require editing this JSON file and logging in again to refresh the generated local configuration.

@@ -84,6 +84,9 @@ jobs:
           npm pkg set name="@ghosard/kimi-coded"
           npm pkg set version="$PACKAGE_VERSION"
           npm pkg set author="ghosard"
+          npm pkg delete bin
+          npm pkg set bin.kimi-coded="dist/main.mjs"
+          npm pkg delete scripts.postinstall
           npm pkg set homepage="https://github.com/ghosard/kimi-code#readme"
           npm pkg set repository.type="git"
           npm pkg set repository.url="git+https://github.com/ghosard/kimi-code.git"
@@ -99,6 +102,15 @@ jobs:
             const bundle = readFileSync("dist/main.mjs", "utf8");
             if (manifest.name !== "@ghosard/kimi-coded") {
               throw new Error(`Unexpected package name: ${manifest.name}`);
+            }
+            if (
+              Object.keys(manifest.bin ?? {}).length !== 1 ||
+              manifest.bin?.["kimi-coded"] !== "dist/main.mjs"
+            ) {
+              throw new Error(`Unexpected CLI bin mapping: ${JSON.stringify(manifest.bin)}`);
+            }
+            if (manifest.scripts?.postinstall !== undefined) {
+              throw new Error("Fork package must not run the upstream kimi shim migration");
             }
             if (!bundle.includes("@ghosard/kimi-coded")) {
               throw new Error("CLI bundle does not contain the fork package name");

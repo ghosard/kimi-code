@@ -27,7 +27,8 @@ Or with pnpm:
 pnpm add -g @ghosard/kimi-coded
 ```
 
-Then run `kimi --version` in a new terminal session.
+Then run `kimi-coded --version` in a new terminal session. This fork does not replace the
+upstream `kimi` command, so both packages can be installed at the same time.
 
 For upgrade and uninstall instructions, see the [Getting Started guide](https://moonshotai.github.io/kimi-code/en/guides/getting-started).
 
@@ -37,7 +38,7 @@ Open a project and start the interactive UI:
 
 ```sh
 cd your-project
-kimi
+kimi-coded
 ```
 
 On first launch, run `/login` inside Kimi Code CLI and choose either Kimi Code OAuth or a Kimi Platform API key. After login, try a first task:
