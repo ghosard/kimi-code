@@ -12,7 +12,8 @@ describe('PlatformSelectorComponent', () => {
     });
     const text = selector.render(120).join('\n').replaceAll(ANSI, '');
 
-    expect(text).toContain('Kimi Code (OAuth)');
+    expect(text).toContain('Kimi Code (kimi.com/code)');
+    expect(text).toContain('Kimi Code (kimi.ai/code)');
     expect(text).toContain('OpenAI Codex (ChatGPT OAuth)');
   });
 });
