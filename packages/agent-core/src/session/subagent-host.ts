@@ -84,11 +84,11 @@ export type {
 } from './subagent-batch';
 
 /**
- * A subagent summary shorter than this many characters triggers one
- * follow-up turn that asks the subagent to expand it, so the parent
- * agent receives a technically complete handoff.
+ * A subagent that finishes without any textual summary (for example, emitting
+ * only thinking tokens) triggers one follow-up turn asking for a concise summary
+ * so the parent agent receives a handoff. Any non-empty textual summary is
+ * accepted as-is.
  */
-const SUMMARY_MIN_LENGTH = 200;
 const SUMMARY_CONTINUATION_ATTEMPTS = 1;
 const HOOK_TEXT_PREVIEW_LENGTH = 500;
 const SUBAGENT_MAX_TOKENS_ERROR =
@@ -411,13 +411,14 @@ export class SessionSubagentHost {
     await runChildTurnToCompletion(child, options.signal);
     await this.drainChildBackgroundTasks(child, options.signal);
 
-    // A subagent that returns an overly terse summary leaves the parent
-    // agent under-informed. Give it a bounded number of chances to expand
-    // the handoff; if it is still short after that, accept it as-is rather
-    // than retrying indefinitely.
+    // A subagent that finishes without any textual summary (for example,
+    // emitting only thinking tokens) leaves the parent agent without a
+    // handoff. Give it a bounded chance to provide a summary; if it
+    // remains empty after that, accept it as-is rather than retrying
+    // indefinitely.
     let result = lastAssistantText(child);
     let remainingContinuations = SUMMARY_CONTINUATION_ATTEMPTS;
-    while (remainingContinuations > 0 && result.length < SUMMARY_MIN_LENGTH) {
+    while (remainingContinuations > 0 && result.length === 0) {
       remainingContinuations -= 1;
       options.signal.throwIfAborted();
       child.turn.prompt([{ type: 'text', text: SUMMARY_CONTINUATION_PROMPT }], SUBAGENT_PROMPT_ORIGIN);

@@ -725,14 +725,37 @@ describe('SessionSubagentHost', () => {
     );
   });
 
-  it('re-prompts the child when the first summary is too short', async () => {
+  it('accepts an intentional short summary without re-prompting', async () => {
+    const parent = testAgent();
+    parent.configure();
+    parent.newEvents();
+
+    const child = testAgent();
+    child.mockNextResponse({ type: 'text', text: 'done' });
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+
+    const handle = await host.spawn({
+      profileName: 'coder',
+      parentToolCallId: 'call_agent',
+      prompt: 'Investigate',
+      description: 'Investigate',
+      runInBackground: false,
+      signal,
+    });
+
+    await expect(handle.completion).resolves.toMatchObject({ result: 'done' });
+    expect(child.llmCalls).toHaveLength(1);
+  });
+
+  it('re-prompts the child when the first turn contains no textual summary', async () => {
     const parent = testAgent();
     parent.configure();
     parent.newEvents();
 
     const longSummary = 'Detailed findings: '.repeat(20);
     const child = testAgent();
-    child.mockNextResponse({ type: 'text', text: 'done' });
+    child.mockNextResponse({ type: 'think', think: 'Investigated in thoughts only.' });
     child.mockNextResponse({ type: 'text', text: longSummary });
     const session = fakeSession(parent.agent, child.agent);
     const host = new SessionSubagentHost(session, 'main');
@@ -750,7 +773,7 @@ describe('SessionSubagentHost', () => {
     expect(child.llmCalls).toHaveLength(2);
     expect(child.llmCalls[1]?.history.at(-1)).toMatchObject({
       role: 'user',
-      content: [{ type: 'text', text: expect.stringContaining('too brief') }],
+      content: [{ type: 'text', text: expect.stringContaining('did not include a textual summary') }],
     });
   });
 
