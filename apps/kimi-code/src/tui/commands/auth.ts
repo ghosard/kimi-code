@@ -5,6 +5,7 @@ import {
   getOpenPlatformById,
   OPENAI_CODEX_PROVIDER_NAME,
   OpenPlatformApiError,
+  type KimiRegion,
   type OpenAICodexLoginMethod,
   type ManagedKimiCodeModelInfo,
   type ManagedKimiConfigShape,
@@ -17,6 +18,10 @@ import { openUrl } from '#/utils/open-url';
 import type { ChoiceOption } from '../components/dialogs/choice-picker';
 import { DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME } from '../constant/kimi-tui';
 import { formatErrorMessage } from '../utils/event-payload';
+import {
+  KIMI_CODE_GLOBAL_PLATFORM_VALUE,
+  refreshKimiRegion,
+} from '#/utils/region';
 import type { LoginProgressSpinnerHandle } from '../types';
 import {
   promptApiKey,
@@ -35,8 +40,16 @@ export async function handleLoginCommand(host: SlashCommandHost): Promise<void> 
   const platformId = await promptPlatformSelection(host);
   if (platformId === undefined) return;
 
-  if (platformId === 'kimi-code') {
-    await handleOAuthLogin(host, DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME, 'device-code');
+  if (platformId === 'kimi-code' || platformId === KIMI_CODE_GLOBAL_PLATFORM_VALUE) {
+    const region: KimiRegion =
+      platformId === KIMI_CODE_GLOBAL_PLATFORM_VALUE ? 'global' : 'mainland-cn';
+    await handleOAuthLogin(
+      host,
+      DEFAULT_OAUTH_PROVIDER_NAME,
+      PRODUCT_NAME,
+      'device-code',
+      region,
+    );
     return;
   }
   if (platformId === OPENAI_CODEX_PROVIDER_NAME) {
@@ -56,6 +69,7 @@ async function handleOAuthLogin(
   providerName: string,
   providerLabel: string,
   loginMethod: OpenAICodexLoginMethod,
+  region?: KimiRegion,
 ): Promise<void> {
   const status = await host.harness.auth.status(providerName);
   const alreadyLoggedIn = status.providers.some(
@@ -72,21 +86,29 @@ async function handleOAuthLogin(
     await host.harness.auth.login(providerName, {
       signal: controller.signal,
       loginMethod,
-      onAuthorizationUrl: ({ authorizationUrl, redirectUri }) => {
-        host.showStatus(
-          `Complete OpenAI login in your browser. If it did not open, visit:\n${authorizationUrl}\nCallback: ${redirectUri}`,
-        );
-        try {
-          openUrl(authorizationUrl);
-        } catch {
-          // Best effort only: the URL remains visible in the transcript.
-        }
-        spinner = host.showLoginProgressSpinner('Waiting for browser authorization…');
-      },
+      ...(region === undefined ? {} : { region }),
+      ...(providerName === OPENAI_CODEX_PROVIDER_NAME
+        ? {
+            onAuthorizationUrl: ({ authorizationUrl, redirectUri }) => {
+              host.showStatus(
+                `Complete OpenAI login in your browser. If it did not open, visit:\n${authorizationUrl}\nCallback: ${redirectUri}`,
+              );
+              try {
+                openUrl(authorizationUrl);
+              } catch {
+                // Best effort only: the URL remains visible in the transcript.
+              }
+              spinner = host.showLoginProgressSpinner('Waiting for browser authorization…');
+            },
+          }
+        : {}),
       onDeviceCode: (data) => {
         spinner = host.showLoginAuthorizationPrompt(data);
       },
     });
+    if (providerName === DEFAULT_OAUTH_PROVIDER_NAME) {
+      refreshKimiRegion();
+    }
     spinner?.stop({ ok: true, label: 'Logged in.' });
     spinner = undefined;
     try {
@@ -264,7 +286,6 @@ export async function handleLogoutCommand(host: SlashCommandHost): Promise<void>
 
   if (target === currentProvider) {
     await host.authFlow.refreshConfigAfterLogout();
-    await host.authFlow.clearActiveSessionAfterLogout();
   } else {
     const updated = await host.harness.getConfig({ reload: true });
     host.setAppState({
@@ -272,6 +293,7 @@ export async function handleLogoutCommand(host: SlashCommandHost): Promise<void>
       availableProviders: updated.providers ?? {},
     });
   }
+  refreshKimiRegion();
 
   host.track('logout', { provider: target });
   const label = oauthProviders.find((provider) => provider.id === target)?.label ?? target;

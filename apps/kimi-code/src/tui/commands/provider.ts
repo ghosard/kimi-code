@@ -19,6 +19,7 @@ import {
 
 import { createKimiCodeUserAgent } from '#/cli/version';
 import { fetchCatalogOrBuiltIn } from '#/utils/catalog-fetch';
+import { refreshKimiRegion } from '#/utils/region';
 import { ChoicePickerComponent } from '../components/dialogs/choice-picker';
 import {
   CustomRegistryImportDialogComponent,
@@ -93,8 +94,10 @@ async function handleProviderDelete(host: SlashCommandHost, providerId: string):
     providerId === OPENAI_CODEX_PROVIDER_NAME
   ) {
     await host.harness.auth.logout(providerId);
+    if (providerId === DEFAULT_OAUTH_PROVIDER_NAME) {
+      refreshKimiRegion();
+    }
     await host.authFlow.refreshConfigAfterLogout();
-    await host.authFlow.clearActiveSessionAfterLogout();
     return;
   }
 
@@ -103,7 +106,6 @@ async function handleProviderDelete(host: SlashCommandHost, providerId: string):
   const config = await host.harness.removeProvider(providerId);
   if (activeProvider === providerId) {
     await host.authFlow.refreshConfigAfterLogout();
-    await host.authFlow.clearActiveSessionAfterLogout();
   } else {
     host.setAppState({
       availableProviders: config.providers ?? {},

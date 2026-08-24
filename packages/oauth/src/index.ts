@@ -72,6 +72,17 @@ export type {
 } from './openai-codex';
 
 export {
+  KIMI_REGION_MARKER_FILENAME,
+  KIMI_REGION_PROFILES,
+  kimiCdnContentUrl,
+  kimiRegionLoginHosts,
+  kimiRegionProfile,
+  kimiRegionSchema,
+  resolveKimiRegion,
+} from './region';
+export type { KimiRegion, KimiRegionProfile, ResolveKimiRegionOptions } from './region';
+
+export {
   applyManagedApiKeyProviderModels,
   applyManagedKimiCodeLogoutConfig,
   applyManagedKimiCodeConfig,

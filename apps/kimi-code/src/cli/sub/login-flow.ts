@@ -12,20 +12,41 @@ import { createKimiHarness } from '@moonshot-ai/kimi-code-sdk';
 import {
   KIMI_CODE_PROVIDER_NAME,
   OPENAI_CODEX_PROVIDER_NAME,
+  type KimiRegion,
   type OpenAICodexLoginMethod,
 } from '@moonshot-ai/kimi-code-oauth';
 
 import { createKimiCodeHostIdentity } from '#/cli/version';
 import { openUrl } from '#/utils/open-url';
+import { persistedKimiOAuthRef, regionForBareLogin } from '#/utils/region';
 
-export async function runLoginFlow(
-  providerName: string = KIMI_CODE_PROVIDER_NAME,
-  requestedMethod?: OpenAICodexLoginMethod,
-): Promise<never> {
+export interface LoginFlowOptions {
+  readonly providerName?: string;
+  readonly loginMethod?: OpenAICodexLoginMethod;
+  readonly region?: KimiRegion;
+}
+
+/** Parse a `--region` CLI flag; exits with an actionable message on bad input. */
+export function parseRegionFlag(value: string): KimiRegion {
+  if (value !== 'mainland-cn' && value !== 'global') {
+    process.stderr.write(`Invalid --region "${value}" (expected "mainland-cn" or "global").\n`);
+    process.exit(1);
+  }
+  return value;
+}
+
+export async function runLoginFlow(options: LoginFlowOptions = {}): Promise<never> {
+  const providerName = options.providerName ?? KIMI_CODE_PROVIDER_NAME;
   const providerLabel =
     providerName === OPENAI_CODEX_PROVIDER_NAME ? 'OpenAI Codex' : 'Kimi Code';
   const loginMethod =
-    providerName === OPENAI_CODEX_PROVIDER_NAME ? requestedMethod ?? 'browser' : 'device-code';
+    providerName === OPENAI_CODEX_PROVIDER_NAME
+      ? options.loginMethod ?? 'browser'
+      : 'device-code';
+  const region =
+    providerName === KIMI_CODE_PROVIDER_NAME
+      ? options.region ?? regionForBareLogin(persistedKimiOAuthRef())
+      : undefined;
   const identity = createKimiCodeHostIdentity();
   const harness = createKimiHarness({
     identity,
@@ -39,25 +60,31 @@ export async function runLoginFlow(
     const result = await harness.auth.login(providerName, {
       signal: controller.signal,
       loginMethod,
-      onAuthorizationUrl: ({ authorizationUrl, redirectUri }) => {
-        process.stderr.write(
-          [
-            '',
-            `Opening browser for ${providerLabel} login: ${authorizationUrl}`,
-            `Waiting for the callback at ${redirectUri}...`,
-            '',
-          ].join('\n'),
-        );
-        try {
-          openUrl(authorizationUrl);
-        } catch {
-          // Best effort only: the URL has already been printed.
-        }
-      },
-      onManualCode:
-        loginMethod === 'browser' && process.stdin.isTTY
-          ? ({ redirectUri, signal }) => promptForOpenAICodexRedirect(redirectUri, signal)
-          : undefined,
+      ...(region === undefined ? {} : { region }),
+      ...(providerName === OPENAI_CODEX_PROVIDER_NAME
+        ? {
+            onAuthorizationUrl: ({ authorizationUrl, redirectUri }) => {
+              process.stderr.write(
+                [
+                  '',
+                  `Opening browser for ${providerLabel} login: ${authorizationUrl}`,
+                  `Waiting for the callback at ${redirectUri}...`,
+                  '',
+                ].join('\n'),
+              );
+              try {
+                openUrl(authorizationUrl);
+              } catch {
+                // Best effort only: the URL has already been printed.
+              }
+            },
+            onManualCode:
+              loginMethod === 'browser' && process.stdin.isTTY
+                ? ({ redirectUri, signal }) =>
+                    promptForOpenAICodexRedirect(redirectUri, signal)
+                : undefined,
+          }
+        : {}),
       onDeviceCode: (data) => {
         const url = data.verificationUriComplete || data.verificationUri;
         // Print the manual fallback before attempting to open the user's

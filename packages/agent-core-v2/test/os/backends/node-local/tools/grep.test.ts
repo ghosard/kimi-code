@@ -18,7 +18,7 @@ import {
   _clearAgentToolContributionsForTests,
   AgentToolContribution,
   getAgentToolContributions,
-  registerAgentToolService,
+  overrideAgentToolService,
 } from '#/agent/toolRegistry/toolContribution';
 import { IAgentToolRegistryService } from '#/agent/toolRegistry/toolRegistry';
 import { AgentToolRegistryService } from '#/agent/toolRegistry/toolRegistryService';
@@ -33,7 +33,7 @@ import {
 import { IHostEnvironment } from '#/os/interface/hostEnvironment';
 import { IHostFileSystem, type HostFileStat } from '#/os/interface/hostFileSystem';
 import { IHostProcessService, type IHostProcess } from '#/os/interface/hostProcess';
-import { ISessionSkillCatalog } from '#/session/sessionSkillCatalog/skillCatalog';
+import { ISessionSkillCatalog } from '#/features/skill/session/skillCatalog';
 import { ISessionToolPolicyGate } from '#/session/sessionToolPolicyGate/sessionToolPolicyGate';
 import { Event } from '#/_base/event';
 import { ISessionWorkspaceContext } from '#/session/workspaceContext/workspaceContext';
@@ -320,7 +320,7 @@ describe('GrepTool', () => {
     const disposables = new DisposableStore();
     try {
       _clearAgentToolContributionsForTests();
-      registerAgentToolService(IGrepTool, ProductionGrepTool, {
+      overrideAgentToolService(IGrepTool, ProductionGrepTool, {
         name: 'Grep',
         source: 'user',
         disclosure: 'deferred',
@@ -386,7 +386,7 @@ describe('GrepTool', () => {
       disposables.dispose();
       _clearAgentToolContributionsForTests();
       for (const contribution of savedContributions) {
-        registerAgentToolService(contribution.id, contribution.ctor, contribution.options);
+        overrideAgentToolService(contribution.id, contribution.ctor, contribution.options);
       }
     }
   });
