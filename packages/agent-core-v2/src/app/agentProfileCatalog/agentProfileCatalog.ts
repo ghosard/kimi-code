@@ -10,7 +10,6 @@ export interface AgentProfilePromptPrefixContext {
 }
 
 export interface AgentProfileSummaryPolicy {
-  readonly minChars: number;
   readonly continuationPrompt: string;
   readonly retries: number;
 }

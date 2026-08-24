@@ -1,4 +1,4 @@
-Your previous response was too brief. Please provide a more comprehensive summary that includes:
+Your previous response did not include a textual summary. Please provide a concise textual summary that includes:
 
 1. Specific technical details and implementations
 2. Detailed findings and analysis

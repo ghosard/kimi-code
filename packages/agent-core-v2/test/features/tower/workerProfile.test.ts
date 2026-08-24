@@ -40,6 +40,12 @@ describe('tower-worker profile', () => {
     const coder = builtinProfile('coder');
     expect(TOWER_WORKER_PROFILE_DEF.summaryPolicy).toEqual(coder.summaryPolicy);
     expect(TOWER_WORKER_PROFILE_DEF.summaryPolicy).toBeDefined();
+    expect('minChars' in (TOWER_WORKER_PROFILE_DEF.summaryPolicy ?? {})).toBe(false);
     expect(TOWER_WORKER_PROFILE_DEF.whenToUse).toBe(coder.whenToUse);
+
+    const prompt = TOWER_WORKER_PROFILE_DEF.systemPrompt({ cwd: '/test' });
+    expect(prompt).toContain('Your final message is the entire handoff');
+    expect(prompt).not.toContain('too brief');
+    expect(prompt).not.toContain('sentence or two');
   });
 });

@@ -21,4 +21,22 @@ describe('builtin agent profiles', () => {
     const agent = profile('agent');
     expect(agent.subagents).toEqual(['coder', 'explore', 'plan']);
   });
+
+  it('configures subagent summary policy without minChars and without length penalty prompt', () => {
+    const coder = profile('coder');
+    expect(coder.summaryPolicy).toBeDefined();
+    expect(coder.summaryPolicy?.retries).toBe(1);
+    expect(coder.summaryPolicy?.continuationPrompt).toContain(
+      'Your previous response did not include a textual summary.',
+    );
+    expect('minChars' in (coder.summaryPolicy ?? {})).toBe(false);
+
+    const coderPrompt = coder.systemPrompt({ cwd: '/test' });
+    expect(coderPrompt).toContain('Your final message is the entire handoff');
+    expect(coderPrompt).not.toContain('too brief');
+    expect(coderPrompt).not.toContain('sentence or two');
+
+    const explore = profile('explore');
+    expect(explore.summaryPolicy).toEqual(coder.summaryPolicy);
+  });
 });
