@@ -49,6 +49,7 @@ Take a look at this project and explain the main directories.
 
 ## Key Features
 
+- **Prompt-cache visibility.** `/usage` shows cached input tokens and cache hit rates per model and across the current session.
 - **Single-binary distribution.** Install with one command — no Node.js setup, no PATH gymnastics, no global module conflicts.
 - **Blazing-fast startup.** The TUI is ready in milliseconds, so opening a session never feels heavy.
 - **Polished TUI.** A carefully tuned interface designed for long, focused agent sessions.

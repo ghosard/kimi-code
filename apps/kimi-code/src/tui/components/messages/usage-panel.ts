@@ -99,6 +99,10 @@ function usageInputTotal(usage: TokenUsage): number {
   );
 }
 
+function cacheHitPercent(cached: number, input: number): string {
+  return `${(input > 0 ? (cached / input) * 100 : 0).toFixed(1)}%`;
+}
+
 function buildSessionUsageSection(
   usage: SessionUsage | undefined,
   error: string | undefined,
@@ -114,21 +118,28 @@ function buildSessionUsageSection(
 
   const lines: string[] = [];
   let totalInput = 0;
+  let totalCached = 0;
   let totalOutput = 0;
   for (const [model, row] of entries) {
     const input = usageInputTotal(row);
+    const cached = usageNumber(row.inputCacheRead);
     const output = usageNumber(row.output);
     totalInput += input;
+    totalCached += cached;
     totalOutput += output;
     lines.push(
-      `  ${muted(model)}  input ${value(formatTokenCount(input))}  output ${value(
+      `  ${muted(model)}  input ${value(formatTokenCount(input))}  cached ${value(
+        formatTokenCount(cached),
+      )} (${value(cacheHitPercent(cached, input))})  output ${value(
         formatTokenCount(output),
       )}  total ${value(formatTokenCount(input + output))}`,
     );
   }
   if (entries.length > 1) {
     lines.push(
-      `  ${muted('total')}  input ${value(formatTokenCount(totalInput))}  output ${value(
+      `  ${muted('total')}  input ${value(formatTokenCount(totalInput))}  cached ${value(
+        formatTokenCount(totalCached),
+      )} (${value(cacheHitPercent(totalCached, totalInput))})  output ${value(
         formatTokenCount(totalOutput),
       )}  total ${value(formatTokenCount(totalInput + totalOutput))}`,
     );

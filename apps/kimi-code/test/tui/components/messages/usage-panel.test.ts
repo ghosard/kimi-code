@@ -45,7 +45,7 @@ describe('UsagePanelComponent', () => {
       }).map(strip);
 
       expect(lines).toContain('Session usage');
-      expect(lines).toContain('  kimi  input 2k  output 250  total 2.2k');
+      expect(lines).toContain('  kimi  input 2k  cached 500 (25.0%)  output 250  total 2.2k');
       expect(lines).toContain('Context window');
       expect(lines.join('\n')).toContain('25%');
       expect(lines).toContain('Plan usage');
@@ -55,6 +55,54 @@ describe('UsagePanelComponent', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('shows cache hits per model and a token-weighted session hit rate', () => {
+    const lines = buildUsageReportLines({
+      sessionUsage: {
+        byModel: {
+          primary: {
+            inputOther: 1024,
+            inputCacheRead: 3072,
+            inputCacheCreation: 0,
+            output: 128,
+          },
+          secondary: {
+            inputOther: 512,
+            inputCacheRead: 512,
+            inputCacheCreation: 0,
+            output: 64,
+          },
+        },
+      },
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    expect(lines).toContain('  primary  input 4k  cached 3k (75.0%)  output 128  total 4.1k');
+    expect(lines).toContain('  secondary  input 1k  cached 512 (50.0%)  output 64  total 1.1k');
+    expect(lines).toContain('  total  input 5k  cached 3.5k (70.0%)  output 192  total 5.2k');
+  });
+
+  it('shows a zero cache hit rate before any input is recorded', () => {
+    const lines = buildUsageReportLines({
+      sessionUsage: {
+        byModel: {
+          kimi: {
+            inputOther: 0,
+            inputCacheRead: 0,
+            inputCacheCreation: 0,
+            output: 10,
+          },
+        },
+      },
+      contextUsage: 0,
+      contextTokens: 0,
+      maxContextTokens: 0,
+    }).map(strip);
+
+    expect(lines).toContain('  kimi  input 0  cached 0 (0.0%)  output 10  total 10');
   });
 
   it('derives plan usage labels from the window and falls back to name / Limit', () => {
